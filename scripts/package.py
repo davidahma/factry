@@ -2,9 +2,9 @@
 
 import argparse
 import io
+import os
 from pathlib import Path
 import subprocess
-import sys
 from zipfile import ZIP_STORED, ZipFile, ZipInfo
 
 
@@ -17,7 +17,11 @@ SKILLS = {
 
 
 def git(*args):
-    return subprocess.check_output(["git", *args], cwd=ROOT)
+    # Hooks and shell wrappers can export another repository's Git directory or
+    # object store. A local replacement object can also shadow a committed blob.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+    return subprocess.check_output(["git", "--no-replace-objects", *args], cwd=ROOT, env=env)
 
 
 def package_bytes(ref):

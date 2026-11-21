@@ -1,6 +1,7 @@
 """Exercise the packaged candidate and reject changed release artifacts."""
 
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,29 @@ SCRIPT = ROOT / "scripts" / "package.py"
 
 
 class ReleaseArchiveTest(unittest.TestCase):
+    def test_git_environment_and_replacement_objects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            subprocess.run(["git", "clone", "-q", "--no-local", str(ROOT), str(source)], check=True)
+            script = source / "scripts" / "package.py"
+            script.write_bytes(SCRIPT.read_bytes())
+
+            def build(target, env=None):
+                subprocess.run([sys.executable, str(script), "build", "HEAD", str(target)],
+                               env=env, check=True, capture_output=True)
+
+            expected = root / "expected.zip"
+            build(expected)
+            blob = subprocess.check_output(["git", "rev-parse", "HEAD:LICENSE"], cwd=source).strip()
+            new = subprocess.check_output(["git", "hash-object", "-w", "--stdin"],
+                                          cwd=source, input=b"replaced license").strip()
+            subprocess.run(["git", "replace", blob, new], cwd=source, check=True)
+            isolated = root / "isolated.zip"
+            build(isolated, dict(os.environ, GIT_DIR=str(root / "another.git"),
+                                 GIT_WORK_TREE=str(root / "another")))
+            self.assertEqual(expected.read_bytes(), isolated.read_bytes())
+
     def test_candidate_and_corrupt_downloads(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "factry.zip"
