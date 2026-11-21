@@ -9,6 +9,8 @@ linked = ['skills', *Dir.glob('skills/**/*', File::FNM_DOTMATCH)].find { |path| 
 abort "Skills must contain portable files: #{linked}" if linked
 skills = Dir.glob('skills/*').sort
 abort 'Missing skills' if skills.empty?
+listed = File.readlines('scripts/skill-catalog.txt').map(&:chomp)
+abort 'Release catalog and skill directories differ' unless listed == skills.map { |path| File.basename(path) }
 catalog = File.read('README.md', encoding: 'UTF-8')
 
 skills.each do |folder|

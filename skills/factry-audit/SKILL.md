@@ -1,0 +1,15 @@
+---
+name: factry-audit
+description: Assess an existing repository end to end through a representative user journey and prioritize engineering gaps. Use when a maintainer asks what to fix first across the project.
+---
+
+# Audit a repository
+
+Start with the person who uses the project, what they are trying to do, and how they can tell it worked. A repository audit can uncover a longstanding gap even when there is no proposed change. For a question about where one decision lives, trace that decision. For a proposed patch, review the diff and its affected callers.
+
+1. Establish the scope. Identify the revision, relevant local edits, and any constraints in the request. Read the project's instructions, quickstart, and applicable contract or architecture decisions. For a broad request, sketch the main entry points and select one journey based on the project's promises and the impact of failure. Explain the choice and name any other areas that the sample leaves open.
+2. Follow that journey from a clean user's starting point to the result they keep. Find the command or UI, the code that owns the result, the inputs and dependencies it trusts, and the check that would catch a broken promise. At the most consequential boundary, inspect what users see on failure and how they can recover. A deployment or live account outside the available environment is a coverage limit.
+3. Try the documented steps and a relevant failure or recovery case where feasible. Read scripts before running them. Exercise trusted examples with synthetic inputs in a disposable environment, isolated from credentials and external effects. Keep the developer's files, Git state, and remote services untouched. If setup fails, establish whether the declared prerequisites work in the test environment before attributing the failure to the project. When a check is unavailable, distinguish the code path you inspected from behavior you observed.
+4. Before ranking a finding, check that someone on the assessed journey can reach its triggering condition. A probe can reveal real behavior with an input the supported producer never emits. Look for another documented caller or a requirement governing that input. If its relevance depends on an assumed use, report it as a conditional observation. Rank demonstrated problems by user impact and ability to recover. Give each finding's trigger, evidence, impact, smallest useful fix, and a check that would demonstrate the repair. Group symptoms with the same cause and use the project's severity rules when it has them.
+
+Return the findings, the journey and revision covered, and important gaps in the assessment. When the sampled path works, lead with that result and its limits before any follow-up ideas. A missing convention warrants a finding when it violates a relevant project requirement or causes a concrete problem. An audit-only request ends with this assessment. If the developer also asked for repairs or publication, hand the findings to that next step under the scope they authorized.
