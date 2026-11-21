@@ -6,6 +6,8 @@ Install the skill under test or give a fresh agent the path to its `SKILL.md`. G
 
 Start with the [two-developer exercise](../examples/team-change/README.md) for a runnable integration failure. The [pilot protocol](team-pilot.md) compares a four-line handoff with ordinary issue and PR practice. The [controlled trial results](team-results.md) cover synthetic participants. The [public retrospective](team-retrospective.md) records what ten disclosed AI-assisted changes in an active project can tell us about actual handoffs.
 
+The [engineering trials](engineering/protocol.md) compare two skill revisions on a numeric boundary, a mixed-version migration, a retried write and a documentation correction. The [Audit pilot](audit-pilot.md) checks repository assessment alongside Scout and Review. See the [v0.4.0 evaluation](v0.4.0.md) for the observed outcomes.
+
 ## Scout, review, and verify
 
 Create the [local CLI example](../examples/verify/README.md). Use a separate fresh session for each request, with the generated repository as its working directory.
@@ -42,7 +44,7 @@ For a new failure, keep the smallest reproducible input and describe how an obse
 
 ## Check skill selection and handoffs
 
-Install all eleven skills in a disposable project. Give a fresh agent one request and the raw inputs below. Withhold the expected skill and outcome. Record the selected skill, the evidence it uses, its actions, and the final Git or provider state.
+Install the complete catalog in a disposable project. Give a fresh agent one request and the raw inputs below. Withhold the expected skill and outcome. Record the selected skill, the evidence it uses, its actions, and the final Git or provider state.
 
 | Developer request | Starting state | What to observe |
 | --- | --- | --- |

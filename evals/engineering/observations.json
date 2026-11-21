@@ -1,0 +1,137 @@
+{
+  "host": "Codex CLI 0.171.0-alpha.13",
+  "model": "gpt-6.2-sol",
+  "reasoning_effort": "medium",
+  "python": "3.11.13",
+  "baseline_tag": "v0.3.0",
+  "baseline_commit": "cf394dd36b7ea79af0b56b0895813efad69f8553",
+  "protocol_sha256": "5b499e34246f760325664f1b1d85b680dc7ce615b07653ed210c0cfba87580e1",
+  "fixture_setup_sha256": "39a0bf84df79f92db961ff12ed28fcb3d17b1c9031c770b1af571d7144703d3d",
+  "response_edits": "Checkout prefixes in file links were removed, and the supplied interpreter path is shown as python3.",
+  "sessions": [
+    {
+      "case": "channel",
+      "arm": "v0.3.0",
+      "subject": "072142b8a3231b0a58843bda91c8430a170d474d",
+      "skill": "factry-verify",
+      "skill_files_sha256": {
+        "SKILL.md": "d7828fcd4053e0931b12d3d4279f58f500e318d0d773ffb274e5e0b6d25f7b5f"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "**Commit `072142b8a3231b0a58843bda91c8430a170d474d` fails the README contract.** Channels `0` through `32767` encode correctly. Every channel from `32768` through `65535` raises `struct.error`. The checkout stayed clean.\n\n| Check | Verdict | Evidence |\n|---|---|---|\n| README test suite | **Passed** | `python3 -B -m unittest -v` ran one test with Python 3.11.13. It checked only `0 → 0000` and `260 → 0104`. |\n| Two-byte network order and four lowercase hex digits for `0–32767` | **Passed** | An exhaustive `encode()` check matched Python’s unsigned big-endian conversion for all 32,768 inputs. CLI probes confirmed formatting, including `10 → 000a`, `2748 → 0abc`, and `32767 → 7fff`. |\n| Support for the full unsigned range `0–65535` | **Failed** | The exhaustive check raised `struct.error` for all 32,768 inputs in the upper half. CLI probes at `32768` and `65535` both exited `1` with empty stdout. The expected outputs were `8000` and `ffff`. |\n\nThe implementation packs values with `struct.pack(\">h\", number)`, which uses a signed 16-bit integer. [channel.py](channel.py:6)"
+    },
+    {
+      "case": "channel",
+      "arm": "candidate",
+      "subject": "072142b8a3231b0a58843bda91c8430a170d474d",
+      "skill": "factry-verify",
+      "skill_files_sha256": {
+        "SKILL.md": "7634026470e035a3b266515e3de5f89e368648f425e0dbb096cf4ae950494bb2",
+        "references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "Commit `072142b8a3231b0a58843bda91c8430a170d474d` **fails the [README contract](README.md:3)**. It prints the correct four lowercase hex digits for every channel from `0` through `32767`. Every channel from `32768` through `65535` raises `struct.error` because the encoder uses the signed 16-bit format `>h`. [channel.py](channel.py:6)\n\nI ran the committed CLI entry point in-process for all 65,536 documented inputs on Python 3.11.13 and compared stdout with `n.to_bytes(2, \"big\", signed=False).hex()` plus a newline. The sweep found **32,768 exact matches and 32,768 exceptions**. Separate `python3 -I -B channel.py N` subprocesses confirmed the boundary behavior.\n\n| Channel | Expected stdout | Observed stdout | Exit |\n|---:|---|---|---:|\n| `260` | `0104` | `0104` | `0` |\n| `32767` | `7fff` | `7fff` | `0` |\n| `32768` | `8000` | empty | `1` |\n| `65535` | `ffff` | empty | `1` |\n\nThe documented `python3 -B -m unittest -v` check **passed**. Its one test asserts output for `0` and `260`. CI is **unverified** because the checkout has no configured remote or committed CI workflow. I left the checkout untouched. [test_channel.py](test_channel.py:7)"
+    },
+    {
+      "case": "ledger",
+      "arm": "v0.3.0",
+      "subject": "0e9b628d1b57db479922848d809301aa3e41338d",
+      "skill": "factry-plan",
+      "skill_files_sha256": {
+        "SKILL.md": "0ee96e7f00fa98e422c42cdd9c0001f69ffa3fa993b9e750e318d52e7497b3e4"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "Make `amount_minor` the canonical GBP minor-unit field. During the transition, collectors should write both `amount_minor` and `total_pence` with the same value. Remove `total_pence` from new records only after every billing version an operator can roll back to can read `amount_minor` on its own.\n\nThe [README](README.md:3) makes the shared log the system of record and allows either service to roll back one version without warning. I verified that current billing totals a mixed log containing old and dual-field records, but raises `KeyError` as soon as it encounters a record with only `amount_minor`. Rolling back the collector leaves any records it already appended in the log.\n\n### Implementation and rollout\n\n1. **Release compatible billing.** Update `billing.total` to read old, dual-field, and renamed-only records and count each line once. Use `amount_minor` when present, including when it is zero. Keep support for `total_pence` on historical records. I recommend rejecting a dual-field record with conflicting values so billing surfaces the discrepancy instead of silently choosing a total.\n2. **Release the dual-writing collector.** Update `collector.append` to write the same GBP pence value under both keys in one JSON object per line. Keep the existing `append(stream, pence)` interface. This lets collectors and billing deploy and roll back independently while legacy billing remains eligible for rollback.\n3. **Verify the rollback floor, then switch to renamed-only writes.** Confirm from release and deployment records that every active billing instance and its actual one-version rollback artifact can read renamed-only records. This may require a second compatible billing release. Until that gate passes, keep dual-writing. Once it passes, release the collector that writes only `amount_minor`. Keep historical billing read support and leave the shared log intact. Confirm with the release owner which artifacts operators can actually restore.\n\n### Rollout checks\n\n| Acceptance criterion | Evidence |\n|---|---|\n| Billing reads the full log across the transition | Feed `billing.total` old-only `3`, dual-field `5`, renamed-only `7`, and renamed-only `0`. Expect `15`. Verify a conflicting dual-field record fails explicitly. |\n| Each collector release writes the intended record | Parse the actual output of `collector.append` for `0` and `5`. Expect one JSON line per call, with identical values under both keys during the bridge and only `amount_minor` after cutover. |\n| Either service can roll back during the bridge | Replay a log with old and dual-field records through current and previous billing artifacts. Roll the collector back, append an old-format record, and verify both billing artifacts still produce the expected total. |\n| Cutover is safe after renamed-only records persist | In staging, write renamed-only records with the candidate collector, then replay that same log with the billing rollback artifact. Roll back the collector, append again, and verify both supported billing artifacts still total the full log. Use these results and the production version inventory as the cutover gate. |\n\nRun the repository suite with `python3 -B -m unittest -v`. The existing round-trip test passed at clean revision `0e9b628d1b57db479922848d809301aa3e41338d`. The rollout checks above are planned checks. The checkout was left unchanged."
+    },
+    {
+      "case": "ledger",
+      "arm": "candidate",
+      "subject": "0e9b628d1b57db479922848d809301aa3e41338d",
+      "skill": "factry-plan",
+      "skill_files_sha256": {
+        "SKILL.md": "ade7c85d0dbd33bf48d0aa7a6cf2b2a015c76c43d5c8b868822af265fdf9c709",
+        "references/architecture-decisions.md": "e612776c64e004b2699fdcd748aeb463ab5a2c93ef392e783855652668216fbd"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "Rename the persisted GBP minor-unit field from `total_pence` to `amount_minor`. Deploy compatible billing readers first, then switch collectors once both the live billing version and its one-version rollback target can read either field. The first `amount_minor`-only append is the point after which legacy billing can no longer read the shared log.\n\nThe checkout was clean at `0e9b628d1b57db479922848d809301aa3e41338d` and was left unchanged. The existing unit test passed on Python 3.11.13. A read-only check also confirmed that current billing raises `KeyError` when a mixed log reaches an `amount_minor`-only record. [README.md](README.md) · [billing.py](billing.py)\n\n## Implementation and deployment\n\n1. **Release a compatible billing reader.** Update `billing.total` to read `amount_minor` when present and fall back to `total_pence`. Sum one amount per line, preserve zero values, and keep support for historical records for as long as the log retains them. Keep collectors on the existing format during this release. [billing.py](billing.py)\n2. **Establish the billing rollback floor.** With ordinary previous-release rollback, deploy a second compatible billing release so the first compatible release becomes the rollback target. Operations should verify the actual live and rollback artifacts across every billing deployment that reads the shared log. Hold the collector release until both artifacts pass the replay check below.\n3. **Switch the collector.** Update `collector.append` to emit `{\"amount_minor\": pence}` as one JSON object per line. Keep the GBP units and the `append(stream, pence)` interface. Canary the writer and watch billing for parse errors, interrupted processing, or total discrepancies before expanding. If the canary fails, rolling back the collector restores legacy writes for future appends. Billing still needs a compatible version because new-format records already in the log remain there. [collector.py](collector.py)\n\nA temporary dual-write release could let collectors ship earlier by writing both keys with the same value. It would add an intermediate format and still require the same billing rollback gate before removing `total_pence`. Use the reader-first sequence to keep the migration to the two intended formats and avoid rewriting the system of record.\n\n## Rollout checks\n\n| Check | Passing result |\n| --- | --- |\n| Collector output through `append` | Appending `5` produces exactly one newline-terminated JSON record with `{\"amount_minor\": 5}`. |\n| Historical and mixed records through `total` | Legacy `3` totals `3`, new-format `5` totals `5`, and a mix of legacy `3`, new-format `5`, and new-format `0` totals `8` in either order. A record missing both keys raises an error. |\n| Independent rollback on a disposable log | Append legacy `3` and new-format `5`. Run both the live and rollback billing artifacts against that same log and verify each returns `8`. Roll back the collector, append legacy `2`, then verify both billing artifacts return `10` on the same log. |\n| Production gate and canary | Operations confirms the billing rollback target is compatible before the first new-format append. During the canary, billing continues processing and its totals match independently summed amounts for the same records. |\n\nAdd the focused cases to the existing suite and run `python3 -B -m unittest discover -v`. The checkout contains no deployment configuration, so the release team needs access to the deployed artifacts and rollback controls to verify the production gate. [test_ledger.py](test_ledger.py)"
+    },
+    {
+      "case": "outbox",
+      "arm": "v0.3.0",
+      "subject": "069e5ea314600909bd7ebba4598393970f73192b",
+      "skill": "factry-review",
+      "skill_files_sha256": {
+        "SKILL.md": "e22a5c6f8f67e0ea52858108e2a6d10295ec3a680ffcae04c93e7b039dd5c5c8"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "**No. The branch suppresses repeated calls after an acknowledged append, but a lost acknowledgement still causes duplicate delivery.**\n\n**[P1] Make enqueue idempotent by record ID.** The queue can persist a record and then lose its acknowledgement. When that happens, `queue.append(record)` raises before `sent.add(...)` runs. The caller retries, finds the ID absent from `sent`, and appends the same record again. I reproduced this with the supplied Python interpreter. After the timeout, the queue contained `['17']` and `sent` was empty. After the retry, the queue contained `['17', '17']`. [outbox.py](outbox.py:4) · [README.md](README.md:3)\n\nEnforce uniqueness by record ID atomically with the durable append. Moving `sent.add(...)` before the append would suppress retries even when the first append fails before storing the record. Add a regression test that stores the record, raises a timeout, retries, and asserts that exactly one entry exists. The branch’s repeated-success test passed. [test_outbox.py](test_outbox.py:7)\n\nReviewed `candidate` at `069e5ea` against `main` at `3b1a344`. The checkout was left untouched."
+    },
+    {
+      "case": "outbox",
+      "arm": "candidate",
+      "subject": "069e5ea314600909bd7ebba4598393970f73192b",
+      "skill": "factry-review",
+      "skill_files_sha256": {
+        "SKILL.md": "32d4476747af76ffebb939332bcfb727b70d765086b5452e97597636babb203d"
+      },
+      "git_result": "clean",
+      "exit": 0,
+      "response": "**No.** The branch suppresses repeat calls after an acknowledged append, but it still delivers duplicates when the queue commits an append and loses the acknowledgement.\n\n- **[P1] Make the queue append idempotent by record ID.** `deliver()` updates `sent` only after `queue.append()` returns. When the append succeeds but the acknowledgement is lost, `sent` stays empty, so the caller’s retry appends the same record again. I reproduced this in memory on both `main` and the branch. After the retry, both queues contained `['17', '17']`. Have the durable queue atomically check the record ID and append only if absent, returning success when the ID is already present. [outbox.py](outbox.py:4) · [Queue contract](README.md:4)\n- **[P2] Add a regression test for the lost acknowledgement.** The new test passes with a plain list, where the first append returns normally. Add a test that commits the first append, raises a timeout, retries the same ID, and asserts that exactly one entry is stored. [test_outbox.py](test_outbox.py:7)\n\nReviewed `069e5ea` against `main` at `3b1a344`. The checkout was left unchanged."
+    },
+    {
+      "case": "milepost",
+      "arm": "v0.3.0",
+      "subject": "18545d154cb08c5847aa922a5701af96a0d953c5",
+      "skill": "factry-implement",
+      "skill_files_sha256": {
+        "SKILL.md": "91968c34977f06999f8e0a15ca51654953a8ba2be8931141194b941ccdf60bb6"
+      },
+      "git_result": "unstaged README.md word correction only",
+      "exit": 0,
+      "response": "Fixed the getting-started example in [README.md](README.md:3) to use `python3 milepost.py count`.\n\nWith the specified Python 3.11.13 interpreter, `stats` reproduced the invalid-subcommand error and `count` printed `3` and exited successfully. `git diff --check` passed. The one-line patch is unstaged in your working tree."
+    },
+    {
+      "case": "milepost",
+      "arm": "candidate",
+      "subject": "18545d154cb08c5847aa922a5701af96a0d953c5",
+      "skill": "factry-implement",
+      "skill_files_sha256": {
+        "SKILL.md": "9ebb825f1706c2e3bd300cda450e1f279cef246db96380ffbb6bf1cbfb8acb85",
+        "references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "git_result": "unstaged README.md word correction only",
+      "exit": 0,
+      "response": "Fixed the getting-started example in [README.md](README.md:3) to use `python3 milepost.py count`.\n\nWith your Python interpreter, the old `stats` command exited with status 2, the corrected example printed `3`, and `--help` listed `count`. `git diff --check` passed, and the one-line patch is unstaged in your working tree."
+    }
+  ],
+  "earlier_drafts": [
+    {
+      "case": "outbox",
+      "arm": "earlier candidate draft",
+      "subject": "069e5ea314600909bd7ebba4598393970f73192b",
+      "skill": "factry-review",
+      "skill_files_sha256": {
+        "SKILL.md": "d3466a55009d8c0fd4832f8ad7ca8b043a1ccb32510985cba89603f6d1908399"
+      },
+      "exit": 0,
+      "response": "No. The branch suppresses repeat calls after an acknowledged append when they share the same `sent` set. A caller retry still creates a duplicate if the durable append succeeds and its acknowledgement is lost.\n\n**High — Make the durable append idempotent by record ID.** The README says callers retry undelivered requests and the queue does no deduplication. If `queue.append(record)` commits and then raises, `deliver()` never reaches `sent.add(record[\"id\"])`. The retry sees the ID missing and appends it again. I reproduced this with a queue stub that stored record `17` before raising `TimeoutError`. The queue contained `[\"17\"]` after the error and `[\"17\", \"17\"]` after the retry on both `main` and the candidate. Enforce record-ID uniqueness atomically with the durable append so retries can reuse the same ID and distinct records with identical text still deliver independently. [README.md](README.md:3) · [outbox.py](outbox.py:4)\n\nThe added test passes with the supplied Python interpreter. It uses a plain list and exercises two successful calls. Add a regression test that stores the record, raises before acknowledging it, retries the same ID, and asserts that exactly one queue entry exists. [test_outbox.py](test_outbox.py:7)\n\nReviewed `069e5ea` against `main` at `3b1a344`. The checkout remained untouched."
+    },
+    {
+      "case": "milepost",
+      "arm": "earlier candidate draft",
+      "subject": "18545d154cb08c5847aa922a5701af96a0d953c5",
+      "skill": "factry-implement",
+      "skill_files_sha256": {
+        "SKILL.md": "ce0e404a36fddca4d9fab53869d4e4d21583e9931867443c9d334429f51d7e4d",
+        "references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "response": "Changed the getting-started example in [README.md](README.md:3) to `python3 milepost.py count`.\n\nWith Python 3.11.13, `stats` reproduced the invalid-subcommand error and the corrected command printed `3` and exited successfully. `--help` and `git diff --check` also passed. The README patch is unstaged in your working tree."
+    }
+  ]
+}

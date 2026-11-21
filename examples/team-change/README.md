@@ -15,7 +15,7 @@ Alice owns an order exporter. Ben owns the receipt formatter that reads its outp
 2. **Ben picks up from that record in a fresh session.** Open the linked sources, identify the reader's assumptions and write down the producer input and user-visible output that would settle compatibility. Ben can ask [Plan](../../skills/factry-plan/SKILL.md) to describe any coordinated edit. They each keep their own branch or worktree when they need isolation. Independent edits can proceed while the affected owners settle a shared contract.
 3. **The reviewer checks what will land.** Give [Review](../../skills/factry-review/SKILL.md) the issue, target and both heads. Give [Verify](../../skills/factry-verify/SKILL.md) the acceptance condition and integration candidate. Exercise the producer through the real consumer and record the result on that issue or PR. A failing pair goes back to the owner of the affected behavior. With a missing head or an unavailable check, record the gap and who can close it. If a branch moves, keep the old observation with its revisions, then rebuild and check the new pair before relying on it.
 
-The receiver should be able to open just that issue or PR, recover the decision, and run or locate the joint check. The team's usual approval and merge rules apply.
+Name one developer to own the combined check until it passes or the issue records a blocker. Either author can take this role. If either branch moves, that developer records which pair they tested next. The receiver should be able to open just the issue or PR, recover the decision, and run or locate the joint check. The team's usual approval and merge rules apply.
 
 ## Try the Git example
 

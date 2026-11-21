@@ -22,6 +22,61 @@ def fixture_git(*args, cwd=ROOT, input_data=None):
 
 
 class ReleaseArchiveTest(unittest.TestCase):
+    def test_catalog_is_read_from_the_packaged_revision(self):
+        legacy = (
+            "address-review", "debug", "fix-ci", "implement", "plan", "post-merge",
+            "release", "review", "scout", "ship", "verify",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            fixture_git("init", "-q", "--template=", str(source))
+            scripts = source / "scripts"
+            scripts.mkdir()
+            script = scripts / "package.py"
+            script.write_bytes(SCRIPT.read_bytes())
+            (source / "LICENSE").write_text("Example license\n")
+            for name in legacy:
+                folder = source / "skills" / ("factry-" + name)
+                folder.mkdir(parents=True)
+                (folder / "SKILL.md").write_text(name)
+
+            def commit():
+                fixture_git("add", ".", cwd=source)
+                fixture_git("-c", "user.name=Fixture", "-c", "user.email=test@example.invalid",
+                            "commit", "-qm", "Fixture revision", cwd=source)
+                return fixture_git("rev-parse", "HEAD", cwd=source).decode().strip()
+
+            def build(ref, name):
+                return subprocess.run([sys.executable, str(script), "build", ref, str(root / name)],
+                                      capture_output=True, text=True)
+
+            old = commit()
+            result = build(old, "old.zip")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            catalog = scripts / "skill-catalog.txt"
+            names = sorted("factry-" + name for name in (*legacy, "audit"))
+            catalog.write_text("\n".join(names) + "\n")
+            missing = build(commit(), "missing.zip")
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn("skills/factry-audit/SKILL.md", missing.stderr)
+
+            audit = source / "skills" / "factry-audit"
+            audit.mkdir()
+            (audit / "SKILL.md").write_text("Audit")
+            result = build(commit(), "new.zip")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with ZipFile(root / "new.zip") as archive:
+                self.assertIn("skills/factry-audit/SKILL.md", archive.namelist())
+            result = build(old, "old-again.zip")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / "old.zip").read_bytes(), (root / "old-again.zip").read_bytes())
+
+            catalog.write_text("\n".join(names + names[:1]))
+            invalid = build(commit(), "invalid.zip")
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertIn("sorted, unique", invalid.stderr)
+
     def test_git_environment_and_replacement_objects(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

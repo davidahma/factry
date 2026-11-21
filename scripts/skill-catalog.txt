@@ -1,0 +1,12 @@
+factry-address-review
+factry-audit
+factry-debug
+factry-fix-ci
+factry-implement
+factry-plan
+factry-post-merge
+factry-release
+factry-review
+factry-scout
+factry-ship
+factry-verify
