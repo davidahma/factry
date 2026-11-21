@@ -9,13 +9,13 @@ linked = ['skills', *Dir.glob('skills/**/*', File::FNM_DOTMATCH)].find { |path| 
 abort "Skills must contain portable files: #{linked}" if linked
 skills = Dir.glob('skills/*').sort
 abort 'Missing skills' if skills.empty?
-catalog = File.read('README.md')
+catalog = File.read('README.md', encoding: 'UTF-8')
 
 skills.each do |folder|
   name = File.basename(folder)
   file = File.join(folder, 'SKILL.md')
   abort "Missing skill entry point: #{file}" unless File.file?(file)
-  parts = File.read(file).match(/\A---\n(.*?)\n---\n(.+)\z/m)
+  parts = File.read(file, encoding: 'UTF-8').match(/\A---\n(.*?)\n---\n(.+)\z/m)
   abort "Invalid skill file: #{file}" unless parts && !parts[2].strip.empty?
   fields = YAML.safe_load(parts[1])
   abort "Invalid name: #{file}" unless fields.is_a?(Hash) && fields['name'] == name &&
@@ -29,7 +29,7 @@ end
 # This repository uses inline Markdown links for local files.
 Dir.glob('**/*.md', File::FNM_DOTMATCH).each do |file|
   next if file.start_with?('.git/')
-  File.read(file).scan(/\]\(([^()\s]+)\)/).flatten.each do |link|
+  File.read(file, encoding: 'UTF-8').scan(/\]\(([^()\s]+)\)/).flatten.each do |link|
     next if link.start_with?('https://', 'http://', '#', 'mailto:')
     path = link.split('#', 2).first
     target = root.join(File.dirname(file), path).cleanpath
