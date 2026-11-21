@@ -14,9 +14,9 @@ From your project's root, install Verify for Codex with the [Skills CLI](https:/
 npx skills@1.9.0 add davidahma/factry --skill factry-verify --agent codex --yes
 ```
 
-For Claude Code, use `--agent claude-code`. The command installs the skill from Factry's default branch and records it in your project's `skills-lock.json`. Start a fresh agent session, give it the issue or the requested behavior, and try this prompt.
+For Claude Code, use `--agent claude-code`. The command installs the skill from Factry's default branch and records it in your project's `skills-lock.json`. Start a fresh agent session and give it the issue or acceptance criteria. For the CLI walkthrough, try this prompt.
 
-> Use factry-verify to check this branch against the requested change. Which requirements pass on this commit? Show me how you checked. Leave the code alone.
+> Use factry-verify to check this branch against the requested change. Try zero and a limit larger than the platform can index. Which requirements fail on this commit? Show me the commands and leave the code alone.
 
 ## Choose a skill
 
