@@ -3,7 +3,7 @@ RUBY ?= ruby
 
 .PHONY: check team-check
 check:
-	$(RUBY) scripts/check.rb
+	LC_ALL=C $(RUBY) scripts/check.rb
 	$(PYTHON) examples/verify/demo.py --check
 	$(MAKE) team-check
 	$(PYTHON) -B -m unittest discover -s tests -v
