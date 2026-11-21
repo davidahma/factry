@@ -1,38 +1,45 @@
-# Try Factry on a pull request
+# Take a green pull request through a repair
 
-You maintain a small Python CLI that copies standard input to standard output. A contributor has added a line limit. The branch has passing tests. Decide whether the change delivers the behavior in the repository's README.
+You maintain a Python CLI that copies standard input to standard output. A contributor added a line limit. The branch passes its two native tests. Your job is to determine which requirements those tests cover, plan any necessary changes, and verify the repair.
 
-## Open the change
+## Try the developer workflow
 
-From the Factry checkout, run the following command with Python 3 and Git 2.28 or later.
+From the Factry checkout, run the following command with Python 3.7+ and Git 2.28+.
 
 ```sh
 python3 examples/verify/demo.py
 ```
 
-The script creates a new repository under the system temporary directory, commits the starter on `main`, checks out the proposed `add-limit` branch, runs the native tests, and prints the repository path. Both commits use a fixture identity. Open the printed path in your coding agent.
+Open the printed temporary repository in your coding agent. The current branch is `add-limit`. Compare it with `main` and read the requested behavior in its `README.md`. You can install each skill in the temporary project or give the agent a path to its `SKILL.md` in your Factry checkout. Both fixture commits use a local example identity.
 
-Use the installed `factry-verify` skill, or point the agent to [its SKILL.md](../../skills/factry-verify/SKILL.md) in your Factry checkout. Ask it to check the change.
+1. **Inspect the candidate.** “Use factry-verify to check this branch against the requested change. Which acceptance criteria hold for this commit? Leave the branch as you found it.” An independent review can start from the same diff. [Verify](../../skills/factry-verify/SKILL.md) · [Review](../../skills/factry-review/SKILL.md)
+2. **Plan the repair.** “Use factry-plan. Give me a short repair plan. For each criterion, tell me what I should observe at the CLI. Keep the plan in this conversation.” [Plan](../../skills/factry-plan/SKILL.md)
+3. **Implement and test.** “Use factry-implement to apply that plan. Add regression tests and show which ones fail on the original candidate. Commit the repair on a new local branch.” [Implement](../../skills/factry-implement/SKILL.md)
+4. **Verify the result.** “Use factry-verify on the repaired commit. Include the revision, the regressions you exercised, and any remaining gaps.” Compare `git diff add-limit...HEAD` with the plan and run `python3 -m unittest -v` to inspect the named tests.
 
-> Use factry-verify to check add-limit against main and the requested change in README.md. Tell me whether each criterion holds for this commit. Leave the branch as you found it.
-
-To try [factry-review](../../skills/factry-review/SKILL.md), ask it to review the same diff for behavior that could break a caller. You can inspect the change yourself with `git diff main...HEAD`. The directory the script printed is disposable.
+## Inspect the worked solution
 
 <details>
-<summary>Compare your result with the worked answer</summary>
+<summary>Show the plan, observations, and replay command</summary>
 
-The two native tests pass. They cover unchanged default behavior on their sample input and a positive limit of two. Try a separate check for the third criterion.
+The initial tests cover default output on their sample input and a positive limit of two. A direct CLI probe reveals a gap:
 
 ```sh
 printf 'red\ngreen\nblue\n' | python3 lines.py --limit 0
 ```
 
-The candidate prints all three lines and exits successfully. The requirement calls for empty output. In `lines.py`, the condition `if args.limit` takes the same branch for zero and the default value `None`. A caller choosing a zero-sized batch receives the entire input.
+The candidate prints all three lines and exits successfully. Zero takes the same iterator path as the omitted option. A second case exposes an independent failure. On a 64-bit Python build, `--limit 9223372036854775808` raises `ValueError` with one line of input because `islice` caps its stop argument at `sys.maxsize`.
 
-A useful report names the candidate commit, distinguishes the passing native tests from the direct observation, and identifies the missing regression test. A possible repair is to select the limited path whenever the option was supplied, including zero.
+The [example plan](worked/PLAN.md) maps the requested behavior to observations a developer can make through stdin, stdout, stderr, and the exit status. To replay the reference implementation from the Factry checkout:
 
-The positive-limit criterion has another edge case. On a 64-bit Python build, `--limit 9223372036854775808` raises `ValueError` even with one line of input. Python accepts the integer, but `islice` caps its stop argument at `sys.maxsize`. A report can credit the passing two-line example while flagging the broader criterion as failed.
+```sh
+python3 examples/verify/demo.py --worked
+```
+
+This creates a separate repository. It runs the two original tests, confirms the observed failures, and adds the plan and four boundary tests on `repair-limit`. The new zero and large-limit cases fail on the candidate. The script then commits the repair and runs all six tests on that clean revision. The output includes both commit IDs and the final repository path. The intermediate `FAILED (failures=2)` is the expected red regression run.
+
+Open the printed repository to compare `add-limit` with `repair-limit`. The repaired CLI handles zero and positive limits accepted by its integer parser, preserves input bytes and order, and keeps the existing negative-input error.
 
 </details>
 
-Maintainers can run `python3 examples/verify/demo.py --check` to confirm the native suite passes and both documented failures still occur. This mode removes its temporary checkout when it finishes.
+For CI, `python3 examples/verify/demo.py --check` verifies the same sequence and removes its temporary repository. The default and `--worked` commands leave their printed directories available for inspection.

@@ -2,39 +2,54 @@
 
 [![CI](https://github.com/davidahma/factry/actions/workflows/ci.yml/badge.svg)](https://github.com/davidahma/factry/actions/workflows/ci.yml)
 
-Factry is a collection of developer skills for coding agents working in existing Git repositories. Install the skill for the job in front of you. Each one is a Markdown file your agent reads alongside your repository’s code, tests, and contribution rules.
+Factry is a collection of developer skills for coding agents working in existing Git repositories. Use one for the job in front of you, or take a change from an issue to a verified patch. Each skill installs independently and uses the repository’s own code, tests, and contribution rules.
 
-**Try it on a green pull request.** Ask “Which of the issue’s acceptance criteria actually passed on this commit?” Factry Verify looks at what the assertions cover and gives each criterion a result. The [five-minute walkthrough](examples/verify/README.md) gives you a local change to try.
+**Try it locally.** A Python CLI promises that a limit of zero prints nothing. Its tests pass, but the CLI prints the entire input. [Follow the change from issue to verified repair](examples/verify/README.md), or run `python3 examples/verify/demo.py` from a Factry checkout to investigate it yourself.
 
-## Choose a skill
+## Build a change
 
-| When you want to… | Use | What you get |
+| Skill | When to use it | What you get |
 | --- | --- | --- |
-| Find where to make a change | [Scout](skills/factry-scout/SKILL.md) | The path from a user-visible entry point to the deciding code, affected callers, and a suggested check |
-| Review a diff before merging | [Review](skills/factry-review/SKILL.md) | Findings ordered by impact, each with a location and a concrete failure case |
-| Check a change against its requirements | [Verify](skills/factry-verify/SKILL.md) | A result and supporting evidence for each criterion, including anything untested |
-| Diagnose or repair a failing job | [Fix CI](skills/factry-fix-ci/SKILL.md) | The causal failure, its revision, and the result of any requested repair |
-| Commit, open a PR, or land an approved change | [Ship](skills/factry-ship/SKILL.md) | The delivery action you requested and confirmation from Git or your code host |
-| Follow a merged change | [Post-merge](skills/factry-post-merge/SKILL.md) | The landed commit, the checks that ran on it, and any outstanding failures |
+| [Scout](skills/factry-scout/SKILL.md) | You need to find where a change belongs. | The deciding code, affected callers, and a check you can run. |
+| [Plan](skills/factry-plan/SKILL.md) | A request needs a design decision or several coordinated edits. | A Markdown plan pairing each intended behavior with an observation that would establish it. |
+| [Implement](skills/factry-implement/SKILL.md) | You have a plan or a clear request. | A scoped patch, regression coverage where applicable, and a record of what the agent exercised. |
+| [Review](skills/factry-review/SKILL.md) | A change is ready for another pair of eyes. | Findings with code locations, triggering conditions, and consequences. |
+| [Verify](skills/factry-verify/SKILL.md) | You want to know which requirements passed on this revision. | A result for each criterion, including skipped checks and untested behavior. |
+
+For a simple fix, start with Implement. For a larger change, ask Plan to identify the affected interfaces and an observable check for each requirement. You can give that plan to another developer or agent directly in an issue, PR description, or conversation.
+
+## Investigate a failure
+
+| Skill | When to use it | What you get |
+| --- | --- | --- |
+| [Fix CI](skills/factry-fix-ci/SKILL.md) | A specific build or test job failed. | A diagnosis tied to the tested revision and a verified repair when requested. |
+| [Debug](skills/factry-debug/SKILL.md) · optional | A developer or user can describe a symptom, even when CI passes. | A small reproducer or a precise account of missing evidence, plus a diagnosis and the next distinguishing check. |
+
+## Deliver a PR
+
+| Skill | When to use it | What you get |
+| --- | --- | --- |
+| [Address Review](skills/factry-address-review/SKILL.md) · optional | You need to act on review comments after a PR has changed. | The current disposition of each thread, with evidence for repairs, duplicates, and superseded feedback. |
+| [Ship](skills/factry-ship/SKILL.md) | You want a commit, a draft PR, or an approved change landed. | Confirmation of the specific delivery action you requested. |
+| [Post-merge](skills/factry-post-merge/SKILL.md) | A PR has landed. | Checks and outstanding failures linked to the resulting revision. |
+| [Release](skills/factry-release/SKILL.md) · optional | Maintainers need to prepare, publish, or verify a version. | Verification of the tag, artifacts, and the version a consumer can install. |
+
+These routes organize eight core skills and three optional skills. Your agent supplies file, shell, and code-host access. A local review needs only the diff and relevant context. Publishing or changing review threads requires the corresponding permission and developer request.
 
 ## Install
 
-From the repository where you want to use a skill, select it with the [Skills CLI](https://github.com/vercel-labs/skills). For example, install Verify for Codex:
+From the target repository, install a skill with the [Skills CLI](https://github.com/vercel-labs/skills). For example, to install Plan for Codex:
 
 ```sh
-npx skills@1.9.0 add davidahma/factry --skill factry-verify --agent codex
+npx skills@1.9.0 add davidahma/factry --skill factry-plan --agent codex
 ```
 
-For Claude Code, use `--agent claude-code`. To inspect the catalog first, run `npx skills@1.9.0 add davidahma/factry --list`. The shorthand follows the default branch. For a fixed version, download the [v0.1.0 source](https://github.com/davidahma/factry/releases/tag/v0.1.0) and copy the desired folder from `skills/` into your project's `.agents/skills/` for Codex or `.claude/skills/` for Claude Code. The skills themselves require no installer, package, or daemon.
+For Claude Code, use `--agent claude-code`. To see all skills, run `npx skills@1.9.0 add davidahma/factry --list`. The repository shorthand follows the default branch. To pin a release, download the skill archive and its `SHA256SUMS` from [GitHub Releases](https://github.com/davidahma/factry/releases), verify its checksum, and copy any folder from `skills/` into your project’s `.agents/skills/` for Codex or `.claude/skills/` for Claude Code.
 
-## Use it
+Start a new session in that project and ask for the installed skill by name:
 
-Start a new session in the target repository and ask for the installed skill by name. For example:
+> Use factry-plan to plan pagination for this command. Show what an existing caller will see and how we can test it. Leave the code alone.
 
-> Use factry-verify on this branch. The CLI must preserve input order and return zero rows for a limit of zero. Which checks cover those requirements?
+> Use factry-implement to repair this off-by-one error and add a regression test. Leave the patch in my working tree.
 
-> Use factry-ship to open a draft PR with my parser fix. Leave my staged documentation edits for a separate change.
-
-Each skill works on its own. Your agent supplies file, shell, and code-host access. A review can use a local diff. Hosted CI, publishing, and deployment checks require the corresponding access in your environment. The shipping skill treats opening a PR and merging it as distinct requests.
-
-See the [evaluation cases](evals/README.md) for examples of what a good run should credit, flag, or leave open. To contribute, start with the [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).
+See the [evaluation cases](evals/README.md), [trial results](evals/v0.2.0.md), and [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).
