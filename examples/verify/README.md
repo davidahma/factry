@@ -10,12 +10,14 @@ From the Factry checkout, run the following command with Python 3.7+ and Git 2.2
 python3 examples/verify/demo.py
 ```
 
-Open the printed temporary repository in your coding agent. The current branch is `add-limit`. Compare it with `main` and read the requested behavior in its `README.md`. You can install each skill in the temporary project or give the agent a path to its `SKILL.md` in your Factry checkout. Both fixture commits use a local example identity.
+Open the printed temporary repository in your coding agent. The current branch is `add-limit`. Compare it with `main` and read the requested behavior in its `README.md`. For a clean checkout, give the agent the path to each `SKILL.md` in your Factry checkout. You can also [install the skills in the temporary project](../../README.md#install). Both fixture commits use a local example identity.
 
 1. **Inspect the candidate.** “Use factry-verify to check this branch against the requested change. Which acceptance criteria hold for this commit? Leave the branch as you found it.” An independent review can start from the same diff. [Verify](../../skills/factry-verify/SKILL.md) · [Review](../../skills/factry-review/SKILL.md)
 2. **Plan the repair.** “Use factry-plan. Give me a short repair plan. For each criterion, tell me what I should observe at the CLI. Keep the plan in this conversation.” [Plan](../../skills/factry-plan/SKILL.md)
 3. **Implement and test.** “Use factry-implement to apply that plan. Add regression tests and show which ones fail on the original candidate. Commit the repair on a new local branch.” [Implement](../../skills/factry-implement/SKILL.md)
 4. **Verify the result.** “Use factry-verify on the repaired commit. Include the revision, the regressions you exercised, and any remaining gaps.” Compare `git diff add-limit...HEAD` with the plan and run `python3 -m unittest -v` to inspect the named tests.
+
+When a different developer or agent takes over, pass along the candidate commit, the criteria from the fixture’s README, and the plan from step 2. After step 3, use the new repair commit for verification.
 
 ## Inspect the worked solution
 

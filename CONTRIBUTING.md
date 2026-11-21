@@ -14,21 +14,21 @@ For changes to Plan or Implement, use the [paired trial protocol](evals/paired-p
 
 ## Release a skill archive
 
-Build from the reviewed release tag. For example, from the repository root with a clean destination:
+Build from the reviewed release tag. Run the following from the repository root with a clean destination.
 
 ```sh
 mkdir release-out
-python3 scripts/package.py build v0.2.0 release-out/factry-skills-v0.2.0.zip
-(cd release-out && shasum -a 256 factry-skills-v0.2.0.zip > SHA256SUMS)
+python3 scripts/package.py build v0.2.1 release-out/factry-skills-v0.2.1.zip
+(cd release-out && shasum -a 256 factry-skills-v0.2.1.zip > SHA256SUMS)
 ```
 
-Publish the ZIP and checksum together. Download both through the versioned release URL, check the checksum, and use the verification command to compare the downloaded ZIP against the tagged Git tree:
+If publishing an evaluation record alongside the ZIP, include its digest in the same manifest. Publish the ZIP and checksum together. Download both through the versioned release URL, follow the [single-archive checksum instructions](README.md#install-from-a-release), and compare the downloaded ZIP against the tagged Git tree.
 
 ```sh
-python3 scripts/package.py verify v0.2.0 path/to/downloaded/factry-skills-v0.2.0.zip
+python3 scripts/package.py verify v0.2.1 path/to/downloaded/factry-skills-v0.2.1.zip
 ```
 
-Test installation from the downloaded archive in a fresh project and confirm the installed skill contents. The v0.2 packager verifies the eleven-skill archive format introduced in v0.2.0. The [v0.1.0 release](https://github.com/davidahma/factry/releases/tag/v0.1.0) retains its own archive and checksum.
+Test the documented project install for Codex and Claude Code in fresh Git repositories. Compare each installed `SKILL.md` with the tagged source. Record host discovery or invocation separately when exercised. The v0.2 packager verifies the eleven-skill archive format introduced in v0.2.0. The [v0.1.0 release](https://github.com/davidahma/factry/releases/tag/v0.1.0) retains its own archive and checksum.
 
 ## Design influences
 

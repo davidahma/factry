@@ -37,6 +37,13 @@ class GraderTest(unittest.TestCase):
         paired.behavioral_results(self.repo, "repair", old, checks)
         return checks
 
+    def trial_batch(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            paired.setup()
+        batch = Path(out.getvalue().strip())
+        self.addCleanup(shutil.rmtree, batch)
+        return batch, json.loads((batch / "initial.json").read_text())
+
     def test_independent_boundary_regressions(self):
         worked = ROOT / "examples" / "verify" / "worked"
         for name in ("lines.py", "test_limit_edges.py"):
@@ -87,11 +94,7 @@ class GraderTest(unittest.TestCase):
             self.assertFalse(opened.called)
 
     def test_unrequested_plan_file_retains_workspace_evidence(self):
-        with contextlib.redirect_stdout(io.StringIO()) as out:
-            paired.setup()
-        batch = Path(out.getvalue().strip())
-        self.addCleanup(shutil.rmtree, batch)
-        states = json.loads((batch / "initial.json").read_text())
+        batch, states = self.trial_batch()
         for key in ("plan-baseline", "direct-baseline"):
             repo = batch / key
             (repo / "PLAN.md").write_text("Unrequested draft")
@@ -107,11 +110,113 @@ class GraderTest(unittest.TestCase):
                 self.assertIn("Unexpected fixture path", row["incomplete"])
                 self.assertFalse(row["checks"]["expected_patch_paths"])
 
+    def test_index_and_worktree_changes_are_observed_separately(self):
+        batch, states = self.trial_batch()
+        key = "plan-baseline"
+        repo = batch / key
+        cli = repo / "lines.py"
+        initial_code = cli.read_bytes()
+        cli.write_bytes(initial_code + b"\n# staged edit\n")
+        paired.git(repo, "add", "--", "lines.py")
+        row = paired.grade_one(repo, states[key], "plan")
+        self.assertEqual(row["changed_paths"], ["lines.py"])
+        self.assertEqual(row["index_paths"], ["lines.py"])
+        self.assertEqual(row["unstaged_paths"], [])
+        self.assertFalse(row["checks"]["untouched_worktree"])
+        self.assertFalse(row["checks"]["same_index"])
+        self.assertTrue(row["checks"]["preserved_note"])
+
+        cli.write_bytes(initial_code)
+        (repo / "new_file").touch()
+        row = paired.grade_one(repo, states[key], "plan")
+        self.assertEqual(row["index_paths"], ["lines.py"])
+        self.assertEqual(row["unstaged_paths"], ["lines.py"])
+        self.assertEqual(row["untracked_paths"], ["new_file"])
+        self.assertEqual(row["changed_paths"], ["lines.py", "new_file"])
+
+    def test_nested_test_package_is_scoped_and_discovered(self):
+        batch, states = self.trial_batch()
+        repo = batch / "repair-skill"
+        worked = ROOT / "examples" / "verify" / "worked"
+        shutil.copyfile(worked / "lines.py", repo / "lines.py")
+        native = repo / "test_lines.py"
+        native.write_text(native.read_text().replace("test_default_preserves_input", "test_copy_all"))
+        tests = repo / "tests"
+        tests.mkdir()
+        (tests / "__init__.py").touch()
+        edges = (worked / "test_limit_edges.py").read_text()
+        (tests / "test_edges.py").write_text(edges.replace(
+            'Path(__file__).with_name("lines.py")', 'Path(__file__).resolve().parents[1] / "lines.py"'
+        ))
+        row = paired.grade_one(repo, states["repair-skill"], "repair")
+        self.assertNotIn("incomplete", row)
+        self.assertTrue(all(row["checks"].values()), row)
+
+    def test_intent_to_add_and_visibility_flags_change_the_index(self):
+        batch, states = self.trial_batch()
+        repo = batch / "plan-baseline"
+        initial = states["plan-baseline"]
+        name = "test_limit_edges.py"
+        (repo / name).touch()
+        paired.git(repo, "add", "-N", "--", name)
+        row = paired.grade_one(repo, initial, "plan")
+        self.assertEqual(row["index_paths"], [name])
+        self.assertEqual(row["untracked_paths"], [])
+        self.assertFalse(row["checks"]["same_index"])
+        self.assertFalse(row["checks"]["untouched_worktree"])
+        self.assertTrue(row["checks"]["preserved_note"])
+
+        repo = batch / "plan-skill"
+        initial = states["plan-skill"]
+        for flag in ("assume-unchanged", "skip-worktree"):
+            with self.subTest(flag=flag):
+                paired.git(repo, "update-index", "--" + flag, "--", "lines.py")
+                row = paired.grade_one(repo, initial, "plan")
+                self.assertEqual(row["index_paths"], ["lines.py"])
+                self.assertFalse(row["checks"]["same_index"])
+                self.assertFalse(row["checks"]["untouched_worktree"])
+                paired.git(repo, "update-index", "--no-" + flag, "--", "lines.py")
+                self.assertTrue(paired.grade_one(repo, initial, "plan")["checks"]["same_index"])
+
+    def test_submitted_assertions_and_original_assertions_are_independent(self):
+        batch, states = self.trial_batch()
+        repo = batch / "direct-skill"
+        (repo / "lines.py").write_text('print("wrong")\n')
+        for name, expected in (("test_lines.py", "red\\ngreen\\nblue\\n"),
+                               ("test_limit.py", "red\\ngreen\\n")):
+            test = repo / name
+            test.write_text(test.read_text().replace(', "' + expected + '")', ', "wrong\\n")'))
+        row = paired.grade_one(repo, states["direct-skill"], "direct")
+        self.assertTrue(row["checks"]["native_suite"])
+        self.assertFalse(row["checks"]["original_native_suite"])
+        self.assertFalse(row["checks"]["default_and_positive"])
+
+    def test_empty_or_skipped_suite_does_not_count_as_native_success(self):
+        shutil.copyfile(ROOT / "examples" / "verify" / "change" / "lines.py", self.repo / "lines.py")
+        for only_skips in (False, True):
+            if only_skips:
+                (self.repo / "test_skipped.py").write_text(
+                    "import unittest\nclass Case(unittest.TestCase):\n"
+                    "    @unittest.skip('fixture')\n    def test_limit(self): pass\n"
+                )
+            with self.subTest(only_skips=only_skips):
+                checks = {}
+                paired.behavioral_results(self.repo, "direct", "", checks)
+                self.assertFalse(checks["native_suite"])
+
+    def test_utf8_only_copy_fails_the_byte_preservation_check(self):
+        worked = ROOT / "examples" / "verify" / "worked" / "lines.py"
+        utf8_only = worked.read_text().replace(
+            "sys.stdout.buffer.writelines(sys.stdin.buffer)",
+            'sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8").encode("utf-8"))',
+        )
+        (self.repo / "lines.py").write_text(utf8_only)
+        row = self.grade_repair()
+        self.assertTrue(row["native_suite"])
+        self.assertFalse(row["default_and_positive"])
+
     def test_interrupted_arm_keeps_observations_and_next_arm_finishes(self):
-        with contextlib.redirect_stdout(io.StringIO()) as out:
-            paired.setup()
-        batch = Path(out.getvalue().strip())
-        self.addCleanup(shutil.rmtree, batch)
+        batch, _ = self.trial_batch()
         attempts = []
 
         def simulate(repo, case, old_source, checks):

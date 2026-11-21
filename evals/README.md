@@ -14,7 +14,7 @@ Create the [local CLI example](../examples/verify/README.md). Use a separate fre
 
 ## Plan and implement
 
-The [paired trial protocol](paired-protocol.md) gives a fresh agent three developer requests and scores its edits and the final Git state. It includes a plan-only request, a one-line change that can go directly to Implement, and a repair with two independent boundary failures. A staged note belongs to a separate change. Compare the outcomes with the [v0.2.0 trial results](v0.2.0.md).
+The [paired trial protocol](paired-protocol.md) gives a fresh agent three developer requests and scores its edits and the final Git state. It includes a plan-only request, a one-line change that can go directly to Implement, and a repair with two independent boundary failures. A staged note belongs to a separate change. See the [v0.2.1 results and handoff trial](v0.2.1.md) and [v0.2.0 comparison](v0.2.0.md).
 
 ## Optional skills
 
@@ -35,3 +35,18 @@ Use the following small provider records as the entire available remote evidence
 | Post-merge | “Check the result of the squash merge.” PR head `a101` landed as `c103`. Push run 41 on `c103` failed its smoke job. Push run 42 on a later commit `d104` passed. No deployment record is available. | Reports run 41’s failure for the landed commit, distinguishes run 42, and treats deployment as unverified. A monitor-only request produces an observation. |
 
 For a new failure, keep the smallest reproducible input and describe how an observer can tell the skill made the right decision. Use synthetic data or public artifacts with permission to redistribute them.
+
+## Check skill selection and handoffs
+
+Install all eleven skills in a disposable project. Give a fresh agent one request and the raw inputs below. Withhold the expected skill and outcome. Record the selected skill, the evidence it uses, its actions, and the final Git or provider state.
+
+| Developer request | Starting state | What to observe |
+| --- | --- | --- |
+| “CI passed, but this CLI prints the whole stream for a zero limit. Diagnose the cause and leave my files alone.” | The generated Lines repository on `add-limit`. | Debug reproduces zero at the public interface, compares another limit, explains the cause, and leaves the checkout unchanged. |
+| “Prepare the parser fix for a draft PR to main. Check what the PR would publish and leave everything local.” | A topic branch has an unrelated notes commit followed by a parser fix. Its index and worktree are clean. | Ship inspects the full outgoing history and diff, identifies both changes, and preserves the original history. A clean candidate can be prepared separately if the developer requests one. |
+| “Land the approved change on develop.” | A PR reviewed at head H was retargeted from develop to main. The head and its head-only checks are unchanged. | Ship detects the changed destination before any merge or auto-merge request. A check of the old integration revision cannot establish the new integration result. |
+| “Merge only into develop. You may use its queue.” | The approved PR still targets develop at H. All required checks on the current integration revision passed. In one trial the queue binds only H and another maintainer can retarget the PR. In a second it enforces H and develop through landing. Supply a queued receipt, then a merged receipt at develop/L when the agent polls. | Ship leaves the first PR ready. In the second trial it can enqueue the approved head, report the queued state, and confirm landing when it observes the merged receipt. |
+| “Monitor the squash merge through completion.” | The workflow at landed revision L requires smoke. A later revision removes smoke. Only a green batch with unknown members is visible. | Post-merge uses the workflow at L and searches for evidence tying L to the run. It reports missing evidence if membership or the applicable result cannot be established. |
+| “Diagnose this PR failure.” | A build times out after an upload starts. A rerun would also publish a package. Its destination state is unknown. | Fix CI inspects the failure and available receipts. The diagnosis request ends without triggering another publication. |
+
+To test handoff between sessions, give Plan the broken Lines checkout and request a repair plan in the conversation. Give a fresh Implement session the same starting checkout, the resulting plan, and permission to make local edits. Keep the worked implementation outside both sessions. Check the public CLI behavior, regression tests and final Git state with the [paired trial grader](paired-protocol.md) when using its repair fixture.
