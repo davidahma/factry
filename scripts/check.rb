@@ -5,6 +5,8 @@ require 'yaml'
 
 root = Pathname.new(__dir__).parent.realpath
 Dir.chdir(root)
+linked = ['skills', *Dir.glob('skills/**/*', File::FNM_DOTMATCH)].find { |path| File.symlink?(path) }
+abort "Skills must contain portable files: #{linked}" if linked
 skills = Dir.glob('skills/*').sort
 abort 'Missing skills' if skills.empty?
 catalog = File.read('README.md')
