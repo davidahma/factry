@@ -18,6 +18,12 @@ Factry is a collection of developer skills for coding agents working in existing
 
 For a simple fix, start with Implement. For a larger change, hand the implementer Plan’s Markdown, the revision it assumes, and the requested stopping point. Give Verify the original criteria and the resulting commit or working tree.
 
+## Work on a feature together
+
+Two developers can pass their own checks and still ship incompatible changes. In the [team walkthrough](examples/team-change/README.md), one changes the JSON an order exporter writes and another changes how a receipt reader consumes it. Work in separate clones, agree on the behavior in the issue, and give a teammate an exact pair of revisions they can check without your chat history.
+
+Run `python3 examples/team-change/demo.py` from a Factry checkout to create the exercise. Run `make team-check` for the automated replay. The [pilot guide](evals/team-pilot.md) compares the handoff against ordinary issues, PRs, CI and the team's usual agents.
+
 ## Investigate a failure
 
 | Skill | When to use it | What you get |
@@ -56,14 +62,14 @@ For a clear fix, install Implement with the same command using `--skill factry-i
 
 ### Install from a release
 
-Download the ZIP and `SHA256SUMS` for the same version from [GitHub Releases](https://github.com/davidahma/factry/releases). In the download directory, check the ZIP’s own entry before extracting it. This example uses v0.2.1.
+Download the skills ZIP and `SHA256SUMS` for the same version from [GitHub Releases](https://github.com/davidahma/factry/releases). For the walkthroughs, download the release's **Source code** archive or check out its tag. In the download directory, check the skills ZIP’s own entry before extracting it.
 
 ```sh
-archive=factry-skills-v0.2.1.zip
+archive=factry-skills-v0.3.0.zip
 awk -v archive="$archive" '$2 == archive' SHA256SUMS | shasum -a 256 -c - &&
   unzip "$archive"
 ```
 
 On systems with GNU `sha256sum`, use `sha256sum -c -` in place of `shasum -a 256 -c -`. Copy the desired folder, such as `skills/factry-plan`, into your project’s `.agents/skills/` for Codex or `.claude/skills/` for Claude Code. Start a new session in the project and invoke the skill by name.
 
-See the [evaluation cases](evals/README.md), [v0.2.1 trial results](evals/v0.2.1.md), and [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).
+See the [evaluation cases](evals/README.md), [team trial results](evals/team-results.md), and [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).

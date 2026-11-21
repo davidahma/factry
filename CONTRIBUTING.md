@@ -10,7 +10,7 @@ Run `make check` from the repository root with Git 2.28+, Ruby 2.6+, Python 3.7+
 
 For a behavior change, run the relevant [evaluation case](evals/README.md) in a fresh coding-agent session. Give it the skill, the request, and the raw inputs. Record the decision it reached, the evidence it used, and any extra permission it assumed. Keep expected answers outside the agent’s working directory. Submit the case and observed result with the PR.
 
-For changes to Plan or Implement, use the [paired trial protocol](evals/paired-protocol.md) and report what both arms accomplished. The model trials are manual. CI exercises the deterministic fixture and package checks.
+For changes to Plan or Implement, use the [paired trial protocol](evals/paired-protocol.md) and report what both arms accomplished. For a change to the [team walkthrough](examples/team-change/README.md), run `make team-check` to exercise passing individual changes, a failing combined change, an independent control and the corrected pair. Use the [team pilot](evals/team-pilot.md) when comparing coordination practices. CI runs the deterministic exercises. Model-session and human comparisons run separately.
 
 ## Release a skill archive
 
@@ -18,17 +18,17 @@ Build from the reviewed release tag. Run the following from the repository root 
 
 ```sh
 mkdir release-out
-python3 scripts/package.py build v0.2.1 release-out/factry-skills-v0.2.1.zip
-(cd release-out && shasum -a 256 factry-skills-v0.2.1.zip > SHA256SUMS)
+python3 scripts/package.py build v0.3.0 release-out/factry-skills-v0.3.0.zip
+(cd release-out && shasum -a 256 factry-skills-v0.3.0.zip > SHA256SUMS)
 ```
 
 If publishing an evaluation record alongside the ZIP, include its digest in the same manifest. Publish the ZIP and checksum together. Download both through the versioned release URL, follow the [single-archive checksum instructions](README.md#install-from-a-release), and compare the downloaded ZIP against the tagged Git tree.
 
 ```sh
-python3 scripts/package.py verify v0.2.1 path/to/downloaded/factry-skills-v0.2.1.zip
+python3 scripts/package.py verify v0.3.0 path/to/downloaded/factry-skills-v0.3.0.zip
 ```
 
-Test the documented project install for Codex and Claude Code in fresh Git repositories. Compare each installed `SKILL.md` with the tagged source. Record host discovery or invocation separately when exercised. The v0.2 packager verifies the eleven-skill archive format introduced in v0.2.0. The [v0.1.0 release](https://github.com/davidahma/factry/releases/tag/v0.1.0) retains its own archive and checksum.
+Test the documented project install for Codex and Claude Code in fresh Git repositories. Compare each installed `SKILL.md` with the tagged source. Record host discovery or invocation separately when exercised. For a walkthrough release, also download the public source archive, extract it in a clean directory and run the documented exercise there. The packager verifies the eleven-skill archive format introduced in v0.2.0. The [v0.1.0 release](https://github.com/davidahma/factry/releases/tag/v0.1.0) retains its own archive and checksum.
 
 ## Design influences
 

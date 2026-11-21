@@ -2,6 +2,10 @@
 
 Install the skill under test or give a fresh agent the path to its `SKILL.md`. Give it the prompt and inputs for one case. Keep the expected outcomes out of its context. Compare the observable actions and final response with those outcomes. Repeat with a clean session when changing the skill. Model output can vary.
 
+## Team coordination
+
+Start with the [two-developer exercise](../examples/team-change/README.md) for a runnable integration failure. The [pilot protocol](team-pilot.md) compares a four-line handoff with ordinary issue and PR practice. The [controlled trial results](team-results.md) cover synthetic participants. The [public retrospective](team-retrospective.md) records what ten disclosed AI-assisted changes in an active project can tell us about actual handoffs.
+
 ## Scout, review, and verify
 
 Create the [local CLI example](../examples/verify/README.md). Use a separate fresh session for each request, with the generated repository as its working directory.
