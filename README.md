@@ -16,7 +16,7 @@ Factry is a collection of developer skills for coding agents working in existing
 | [Review](skills/factry-review/SKILL.md) | A change is ready for another pair of eyes. | Findings with code locations, triggering conditions, and consequences. |
 | [Verify](skills/factry-verify/SKILL.md) | You want to know which requirements passed on this revision. | A result for each criterion, including skipped checks and untested behavior. |
 
-For a simple fix, start with Implement. For a larger change, ask Plan to identify the affected interfaces and an observable check for each requirement. You can give that plan to another developer or agent directly in an issue, PR description, or conversation.
+For a simple fix, start with Implement. For a larger change, hand the implementer Plan’s Markdown, the revision it assumes, and the requested stopping point. Give Verify the original criteria and the resulting commit or working tree.
 
 ## Investigate a failure
 
@@ -24,6 +24,8 @@ For a simple fix, start with Implement. For a larger change, ask Plan to identif
 | --- | --- | --- |
 | [Fix CI](skills/factry-fix-ci/SKILL.md) | A specific build or test job failed. | A diagnosis tied to the tested revision and a verified repair when requested. |
 | [Debug](skills/factry-debug/SKILL.md) · optional | A developer or user can describe a symptom, even when CI passes. | A small reproducer or a precise account of missing evidence, plus a diagnosis and the next distinguishing check. |
+
+If CI is green and a user reports missing output, start with Debug. If a particular job went red, give Fix CI its run link. A diagnosis-only request can end with the cause and the evidence for it.
 
 ## Deliver a PR
 
@@ -38,18 +40,30 @@ These routes organize eight core skills and three optional skills. Your agent su
 
 ## Install
 
-From the target repository, install a skill with the [Skills CLI](https://github.com/vercel-labs/skills). For example, to install Plan for Codex:
+From the target Git repository, use Node.js 22.20.0 or newer and `npx` to install one skill with the [Skills CLI](https://github.com/vercel-labs/skills). This example installs Plan for Codex.
 
 ```sh
 npx skills@1.9.0 add davidahma/factry --skill factry-plan --agent codex
 ```
 
-For Claude Code, use `--agent claude-code`. To see all skills, run `npx skills@1.9.0 add davidahma/factry --list`. The repository shorthand follows the default branch. To pin a release, download the skill archive and its `SHA256SUMS` from [GitHub Releases](https://github.com/davidahma/factry/releases), verify its checksum, and copy any folder from `skills/` into your project’s `.agents/skills/` for Codex or `.claude/skills/` for Claude Code.
-
-Start a new session in that project and ask for the installed skill by name:
+For Claude Code, use `--agent claude-code`. The installer writes the skill into the project and creates or updates `skills-lock.json`. The shorthand follows the repository’s default branch. To list available skills, run `npx skills@1.9.0 add davidahma/factry --list`. Start a fresh session in that project and ask for Plan by name.
 
 > Use factry-plan to plan pagination for this command. Show what an existing caller will see and how we can test it. Leave the code alone.
 
+For a clear fix, install Implement with the same command using `--skill factry-implement`. Start a fresh session and describe the repair and where to leave the patch.
+
 > Use factry-implement to repair this off-by-one error and add a regression test. Leave the patch in my working tree.
 
-See the [evaluation cases](evals/README.md), [trial results](evals/v0.2.0.md), and [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).
+### Install from a release
+
+Download the ZIP and `SHA256SUMS` for the same version from [GitHub Releases](https://github.com/davidahma/factry/releases). In the download directory, check the ZIP’s own entry before extracting it. This example uses v0.2.1.
+
+```sh
+archive=factry-skills-v0.2.1.zip
+awk -v archive="$archive" '$2 == archive' SHA256SUMS | shasum -a 256 -c - &&
+  unzip "$archive"
+```
+
+On systems with GNU `sha256sum`, use `sha256sum -c -` in place of `shasum -a 256 -c -`. Copy the desired folder, such as `skills/factry-plan`, into your project’s `.agents/skills/` for Codex or `.claude/skills/` for Claude Code. Start a new session in the project and invoke the skill by name.
+
+See the [evaluation cases](evals/README.md), [v0.2.1 trial results](evals/v0.2.1.md), and [contributor guide](CONTRIBUTING.md). Factry is licensed under [Apache 2.0](LICENSE).
