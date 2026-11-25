@@ -20,6 +20,8 @@ Create the [local CLI example](../examples/verify/README.md). Use a separate fre
 
 ## Plan and implement
 
+The [repository-guide handoff](guide-handoff.md) tests a persisted-format change from a plan through an independently verified patch. It includes an incomplete plan, a misleading green check, and a one-line documentation control. See the [v0.5.0 evaluation](v0.5.0.md) for the repeat trials and delivery control.
+
 The [paired trial protocol](paired-protocol.md) gives a fresh agent three developer requests and scores its edits and the final Git state. It includes a plan-only request, a one-line change that can go directly to Implement, and a repair with two independent boundary failures. A staged note belongs to a separate change. See the [v0.2.1 results and handoff trial](v0.2.1.md) and [v0.2.0 comparison](v0.2.0.md).
 
 ## Optional skills

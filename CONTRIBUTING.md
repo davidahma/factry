@@ -6,9 +6,13 @@ Follow the [community conduct guidelines](CODE_OF_CONDUCT.md) in project discuss
 
 Each directory in `skills/` is an independent installation unit. Keep its name and description specific enough for an agent to select it from the catalog. Put the essential decisions in `SKILL.md`. Keep any supporting files inside the same skill. Use the target repository’s own commands and preserve the developer’s requested scope. Keep instructions that affect the verdict in the entry point. Put worked examples in a local `references/` directory and test the installation of that skill alone. Update the sorted [release catalog](scripts/skill-catalog.txt) when adding or removing a skill. The file format follows the [Agent Skills specification](https://agentskills.io/specification).
 
-Run `make check` from the repository root with Git 2.28+, Ruby 2.6+, Python 3.7+ and Make. This checks skill metadata, catalog entries, local file links, the broken and repaired walkthrough revisions, and packaging of the current Git commit. Manifests and links are checked in the working tree. Commit the candidate before using the archive test as release evidence. To use a different interpreter, set `PYTHON` or `RUBY` when invoking Make.
+Use the [PR template](.github/pull_request_template.md) to carry the relevant repository rule from plan to review. For a behavior or policy change, name the rule and revision, the choice it governs, and the result that demonstrates compliance. If a check was skipped or blocked, say what remains unverified. The [worked guide handoff](examples/guide-handoff/README.md) shows the difference between unit and rollout evidence. A wording correction can use a single line naming the claim and the check.
+
+Run `make check` from the repository root with Git 2.28+, Ruby 2.6+, Python 3.7+ and Make. This checks skill metadata, catalog entries, local file links, the three walkthroughs, and packaging of the current Git commit. Manifests and links are checked in the working tree. Commit the candidate before using the archive test as release evidence. To use a different interpreter, set `PYTHON` or `RUBY` when invoking Make.
 
 For a behavior change, run the relevant [evaluation case](evals/README.md) in a fresh coding-agent session. Give it the skill, the request, and the raw inputs. Record the decision it reached, the evidence it used, and any extra permission it assumed. Keep expected answers outside the agent’s working directory. Submit the case and observed result with the PR.
+
+For changes to how skills carry repository rules into a patch, repeat the [guide handoff trial](evals/guide-handoff.md), including the incomplete-plan and documentation controls.
 
 For changes to architecture or test guidance, repeat the [engineering cases](evals/engineering/protocol.md) against the previous release, including the harmless control. For changes to Audit, use the [audit pilot](evals/audit-pilot.md) to check routing and findings. For changes to Plan or Implement, use the [paired trial protocol](evals/paired-protocol.md) and report what both arms accomplished. For a change to the [team walkthrough](examples/team-change/README.md), run `make team-check` to exercise passing individual changes, a failing combined change, an independent control and the corrected pair. Use the [team pilot](evals/team-pilot.md) when comparing coordination practices. CI runs the deterministic exercises. Model-session and human comparisons run separately.
 
@@ -18,14 +22,14 @@ Build from the reviewed release tag. Run the following from the repository root 
 
 ```sh
 mkdir release-out
-python3 scripts/package.py build v0.4.0 release-out/factry-skills-v0.4.0.zip
-(cd release-out && shasum -a 256 factry-skills-v0.4.0.zip > SHA256SUMS)
+python3 scripts/package.py build v0.5.0 release-out/factry-skills-v0.5.0.zip
+(cd release-out && shasum -a 256 factry-skills-v0.5.0.zip > SHA256SUMS)
 ```
 
 If publishing an evaluation record alongside the ZIP, include its digest in the same manifest. Publish the ZIP and checksum together. Download both through the versioned release URL, follow the [single-archive checksum instructions](README.md#install-from-a-release), and compare the downloaded ZIP against the tagged Git tree.
 
 ```sh
-python3 scripts/package.py verify v0.4.0 path/to/downloaded/factry-skills-v0.4.0.zip
+python3 scripts/package.py verify v0.5.0 path/to/downloaded/factry-skills-v0.5.0.zip
 ```
 
 Test the documented project install for Codex and Claude Code in fresh Git repositories. Compare the installed skill directory, including its bundled references, with the tagged source. Record host discovery or invocation separately when exercised. For a walkthrough release, also download the public source archive, extract it in a clean directory and run the documented exercise there. The packager reads the catalog from the selected Git revision and supports the eleven-skill archives from v0.2.0 through v0.3.0. The [v0.1.0 release](https://github.com/davidahma/factry/releases/tag/v0.1.0) retains its own archive and checksum.

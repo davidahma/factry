@@ -37,6 +37,10 @@ For Claude Code, use `--agent claude-code`. The command installs the skill from 
 
 For a migration, Plan's [architecture guide](skills/factry-plan/references/architecture-decisions.md) asks which reader must ship first. Implement's [development checks](skills/factry-implement/references/development-checks.md) cover existing data and callers. Verify's [test selection guide](skills/factry-verify/references/test-selection.md) helps you choose a check for the failure you suspect. Each guide installs with its skill.
 
+## Carry repository rules into the patch
+
+In the [guide handoff walkthrough](examples/guide-handoff/README.md), a writer changes the format of a saved record. The native unit tests pass even when the old reader can no longer open new records. Plan identifies the repository's compatibility requirement, Implement runs its rollout check, and Verify checks the candidate against the original request and repository rules.
+
 ## Work on a feature together
 
 Alice adds a currency field to an order export. Ben's receipt formatter rejects the extra field. Both branches pass their own tests and Git merges them cleanly. The [team walkthrough](examples/team-change/README.md) gives you their checkouts and a four-line handoff for the issue or PR, so a teammate can find the two commits and test the receipt without either author's chat history.
@@ -45,10 +49,10 @@ From a Factry checkout, run `python3 examples/team-change/demo.py` to try it. In
 
 ## Install from a release
 
-For a versioned install, download the skills ZIP and `SHA256SUMS` from the [v0.4.0 release](https://github.com/davidahma/factry/releases/tag/v0.4.0). In the download directory, verify the ZIP before extracting it.
+For a versioned install, download the skills ZIP and `SHA256SUMS` from the [v0.5.0 release](https://github.com/davidahma/factry/releases/tag/v0.5.0). In the download directory, verify the ZIP before extracting it.
 
 ```sh
-archive=factry-skills-v0.4.0.zip
+archive=factry-skills-v0.5.0.zip
 awk -v archive="$archive" '$2 == archive' SHA256SUMS | shasum -a 256 -c - &&
   unzip "$archive"
 ```

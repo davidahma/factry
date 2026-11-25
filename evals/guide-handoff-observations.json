@@ -1,0 +1,225 @@
+{
+  "model": "gpt-6.2-sol",
+  "reasoning_effort": "medium",
+  "codex_cli": "0.171.0-alpha.13.2",
+  "python": "3.11.13",
+  "baseline": "v0.4.0",
+  "normalization": "Checkout paths made project-relative. Local interpreter paths shown as python3.",
+  "observations": [
+    {
+      "case": "plan",
+      "arm": "baseline",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-plan/SKILL.md": "ade7c85d0dbd33bf48d0aa7a6cf2b2a015c76c43d5c8b868822af265fdf9c709",
+        "factry-plan/references/architecture-decisions.md": "e612776c64e004b2699fdcd748aeb463ab5a2c93ef392e783855652668216fbd"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "## Amount-field migration plan\n\nUpdate `ledger.py` so `write` emits `amount_minor` and `total_pence` with the same integer GBP minor-unit value. Keep the `write` and `total` commands, one JSON object per written line, and the integer total on stdout. The new reader will accept historical rows, dual-field rows, and rows that supply only `amount_minor`. [ISSUE.md](ISSUE.md), [architecture guide](docs/architecture.md)\n\n1. **Update the reader.** In `total()`, decode each line once with the existing JSON decoder. Read `amount_minor` by key presence and fall back to `total_pence` when it is absent, so `0` works. Count each receipt once. The issue leaves conflicting dual-field values unspecified. I recommend rejecting a row whose two values differ, with an error and a nonzero exit, so an inconsistent receipt cannot silently produce different totals across reader versions. [ledger.py](ledger.py:12)\n2. **Update the writer.** In `encode()`, serialize both keys from the same parsed integer. Keep the existing CLI entry points and stdout behavior. Dual writing allows an old reader to total new receipts and a new reader to total receipts from an old writer. Writing only `amount_minor` would make a persisted row unreadable after reader rollback. [ledger.py](ledger.py:8)\n3. **Verify the candidate before rollout.** Extend the public CLI tests with the cases below. Rerun both required checks with the supplied interpreter and record the rollout output in the handoff. Use the existing frozen previous reader and rollout check as the compatibility reference. [CLI tests](tests/test_ledger.py:19), [testing guide](docs/testing.md)\n\n| Public CLI check | Expected result |\n|---|---|\n| `write 125` | One JSON line with both fields set to the integer `125` |\n| `total` with `{\"total_pence\":75}` | `75` |\n| `total` with `{\"amount_minor\":125}` or `{\"amount_minor\":0}` in separate runs | `125` and `0`, respectively |\n| `total` with a historical row for `75` followed by the candidate writer’s row for `125` | `200` |\n| `total` with `{\"amount_minor\":125,\"total_pence\":126}` | Nonzero exit under the proposed conflict policy |\n| `checks/rollout.py` with the same historical and candidate-writer mix | `Rollback reader accepted old and current rows: 200` |\n\nReaders and writers can deploy or roll back independently while ledger writers emit historical or dual-field rows. Keep `amount_minor`-only input out of any persisted stream that still needs the previous reader. The format owner must separately approve retiring `total_pence` after that rollback dependency ends.\n\n**Verified baseline.** The checkout is clean at `4f3481ecde5013630443f23fac030f36f888574e`. With the supplied Python 3.11.13 interpreter, `-B -m unittest discover -s tests -v` passed both tests and `-B checks/rollout.py` printed the expected `200` result. The checkout was left untouched."
+    },
+    {
+      "case": "implement",
+      "arm": "baseline",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "9ebb825f1706c2e3bd300cda450e1f279cef246db96380ffbb6bf1cbfb8acb85",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "README.md",
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "Implemented the `amount_minor` migration and left the patch unstaged. `write` emits both fields with the same integer GBP minor-unit value on one JSON line. `total` accepts historical, dual-field, and `amount_minor`-only receipts, including zero. Conflicting values cause a nonzero exit with no total on stdout.\n\nAll five CLI tests passed on Python 3.11.13. The rollout check printed `Rollback reader accepted old and current rows: 200`. I also corrected the README example to use `total` and verified that it prints `125`."
+    },
+    {
+      "case": "verify",
+      "arm": "baseline",
+      "input_commit": "68c83aad61e309d3b4831e7b23b42790d886143c",
+      "skill_files": {
+        "factry-verify/SKILL.md": "7634026470e035a3b266515e3de5f89e368648f425e0dbb096cf4ae950494bb2",
+        "factry-verify/references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**All requirements in ISSUE.md passed locally** on `68c83aad61e309d3b4831e7b23b42790d886143c` using Python 3.11.13. The checkout was clean before and after verification.\n\n| Requirement | Verdict | Evidence |\n|---|---|---|\n| `write` emits `amount_minor` | **Passed** | `write 125` emitted one newline-terminated JSON object with `amount_minor` and `total_pence` both set to the integer `125`. |\n| `total` accepts `amount_minor` alone | **Passed** | CLI tests confirmed that `{\"amount_minor\": 125}` totals `125` and `{\"amount_minor\": 0}` totals `0`. |\n| Keep `write`, `total`, and integer GBP minor-unit semantics | **Passed** | The README pipeline returned `125`. Independent CLI checks preserved exact values for `0`, `-1`, `2**63`, and `10**100` through writing, reading, and summing. |\n| Keep historical receipts readable | **Passed** | `total` returned `75` for a `total_pence`-only receipt and `200` for that receipt plus a candidate-written `125` receipt. |\n| Preserve rollback compatibility | **Passed locally** | The frozen rollout check printed `Rollback reader accepted old and current rows: 200`. I also ran the actual parent revision’s CLI. It returned `200` with two historical rows and again with one historical row and one candidate-written row. |\n\nBoth commands listed in the CI workflow passed locally. `python3 -B -m unittest discover -s tests -v` passed all five tests, including rejection of conflicting field values, and `python3 -B checks/rollout.py` exited successfully. **Hosted CI on this SHA remains unverified** because the checkout’s origin is a local repository and no hosted run was available."
+    },
+    {
+      "case": "negative",
+      "arm": "baseline",
+      "input_commit": "57431d785fdc23b1db6745167a14c911b3a3ded8",
+      "skill_files": {
+        "factry-verify/SKILL.md": "7634026470e035a3b266515e3de5f89e368648f425e0dbb096cf4ae950494bb2",
+        "factry-verify/references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**Overall verdict: failed.** Revision `57431d785fdc23b1db6745167a14c911b3a3ded8` meets the requirements in [ISSUE.md](ISSUE.md:3), but fails the repository’s rollout requirements. The previous reader cannot total receipts written by this candidate.\n\n| Requirement | Verdict | Evidence |\n| --- | --- | --- |\n| The writer includes `amount_minor` | **Passed** | `ledger.py write 125` emitted one JSON object on one line, `{\"amount_minor\": 125}`. |\n| The reader accepts `amount_minor`-only records | **Passed** | `ledger.py total` returned `125` for `{\"amount_minor\": 125}`. |\n| Preserve `write`, `total`, and integer GBP minor units | **Passed** | Both commands succeeded. Values `0`, `-125`, `125`, and `9223372036854775809` round-tripped as exact integers. |\n| The current reader accepts historical `total_pence`-only records | **Passed** | A historical row totaled `75` on its own and `200` when combined with a candidate-written row for `125`. |\n| The writer emits both fields with equal integer values during rollout | **Failed** | The candidate’s output omits `total_pence`. The [architecture guide](docs/architecture.md:5) requires both fields. |\n| The previous reader totals a mixed stream after rollback | **Failed** | The previous CLI from `4f3481e` totaled `200` with its own writer. With the same historical row and the candidate’s output, it exited `1` with `KeyError: 'total_pence'`. The frozen rollout check from `4f3481e` also exited `1` and reported the missing field. |\n\n**Required checks.** All four unit tests passed on Python 3.11.13, including the CLI regression test with old and new input. The candidate’s `checks/rollout.py` exited `0` and printed the expected success message, but its only statement prints that message. It never invokes the writer or reader, so the required rollout check **failed** when run using the frozen version. A hosted CI run for this SHA and whether the baseline was run before the change remain **unverified**. I reproduced the baseline during this review.\n\nThe checkout was clean before and after verification."
+    },
+    {
+      "case": "plan",
+      "arm": "release",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-plan/SKILL.md": "da1dca1a0c8336c87d0db0cbbf67c4b45cc5bdb7be78524c334c70a4114b8fe1",
+        "factry-plan/references/architecture-decisions.md": "e612776c64e004b2699fdcd748aeb463ab5a2c93ef392e783855652668216fbd"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "## Plan the `amount_minor` migration\n\nAdd `amount_minor` to every receipt written by `ledger.py write`. Keep emitting `total_pence` with the same integer GBP minor-unit value so the previous reader can still total receipts appended during rollout. Update `ledger.py total` to read historical receipts, dual-field receipts, and receipts that supply only `amount_minor`. Preserve both CLI commands and their stdout formats. [ISSUE.md](ISSUE.md) · [Architecture guide](docs/architecture.md)\n\n1. **Extend the reader first.** In `ledger.py`, decode each line once with `json.loads` and select the amount by key presence so zero is handled correctly. Give `total_pence` precedence when both keys are present. The issue leaves conflicting input unspecified, and this choice preserves the total the previous reader would return for a record it already accepts. Keep the existing CLI and Python 3.7+ standard-library support. [Development guide](docs/development.md)\n2. **Update the writer and verify through the CLI.** Have `encode` serialize both keys from the same parsed integer. In `tests/test_ledger.py`, assert that `write 125` emits one JSON object on one stdout line with both fields set to integer `125`. Cover a historical row, an `amount_minor`-only row including zero, and a conflicting dual-field row that exercises the precedence rule. Feed the historical `75` and actual writer output into `total` and require `200\\n`, counting each receipt once. [Testing guide](docs/testing.md)\n3. **Gate rollout on the frozen reader.** Keep `checks/rollout.py` and its previous-reader implementation as the compatibility reference. The writer and reader can deploy or roll back independently because both reader versions accept historical and dual-field rows. If another producer supplies `amount_minor`-only rows, keep them out of streams that still require reader rollback. The previous reader requires `total_pence`, and reinstalling it leaves appended rows in place. Removing `total_pence` from writer output requires a separate decision from the format owner. [Architecture guide](docs/architecture.md)\n\n## Verification\n\nThe checkout was clean at `4f3481ecde5013630443f23fac030f36f888574e`. I ran both baseline checks from the repository root using `python3`. The checkout stayed untouched.\n\n| Repository-root check | Observed baseline | Required on the candidate |\n|---|---|---|\n| `python3 -B -m unittest discover -s tests -v` | 2 tests passed | All tests pass, including the new CLI cases above. |\n| `python3 -B checks/rollout.py` | Printed `Rollback reader accepted old and current rows: 200` | The same output and exit status 0 with the candidate writer. A missing `total_pence` or incorrect total fails this gate. |\n\nRun both commands locally on the candidate and require both steps to pass in GitHub Actions when the branch is published. Record the candidate rollout output in the implementation handoff. [CI workflow](.github/workflows/ci.yml)"
+    },
+    {
+      "case": "implement",
+      "arm": "initial draft",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "61a686c522d818b5dce1a23cce7a4a2c54f6d93c8bddc5dc03aa3b6215ef7328",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "Implemented the `amount_minor` migration and left the patch unstaged.\n\n`ledger.py write` emits one JSON object per line with equal integer values for `amount_minor` and `total_pence`. `ledger.py total` accepts historical, dual-field, and `amount_minor`-only receipts. When the fields disagree, `total_pence` takes precedence, including when its value is zero.\n\nBoth local checks passed on Python 3.11.13.\n\n- `python3 -B -m unittest discover -s tests -v` passed all 4 CLI tests.\n- `python3 -B checks/rollout.py` exited 0 and printed `Rollback reader accepted old and current rows: 200`.\n\n`git diff --check` passed and the index is clean. GitHub Actions verification is pending branch publication."
+    },
+    {
+      "case": "omitted",
+      "arm": "initial draft",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "61a686c522d818b5dce1a23cce7a4a2c54f6d93c8bddc5dc03aa3b6215ef7328",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "`write` now emits `amount_minor` and `total_pence` with equal integer GBP minor-unit values, as required for rollback compatibility. `total` uses `amount_minor` when present and falls back to `total_pence` for historical receipts.\n\nVerified the working-tree patch with Python 3.11.13. All three CLI tests passed, and the frozen previous reader totaled the historical and newly written receipts to `200`.\n\nThe patch is unstaged. `git diff --check` passed."
+    },
+    {
+      "case": "implement",
+      "arm": "revised before final scope reminder",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "2f887870b9ef4553244f728454b1d87b7a273dbd6450c6ccfa79d5f806f0844e",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "Implemented the `amount_minor` migration and left the patch unstaged. `write` emits one JSON line with equal integer GBP minor-unit values in `amount_minor` and `total_pence`. `total` accepts historical, dual-field, and `amount_minor`-only receipts, including zero. When the fields disagree, `total_pence` takes precedence as specified in the plan. [ledger.py](ledger.py:8) · [Development guide](docs/development.md:3) · [Architecture guide](docs/architecture.md:5)\n\n- `python3 -B -m unittest discover -s tests -v` passed all 5 CLI tests with Python 3.11.13. The historical receipt and actual writer output totaled `200\\n`. [Testing guide](docs/testing.md:3)\n- `python3 -B checks/rollout.py` exited 0 and printed `Rollback reader accepted old and current rows: 200`. [Rollout requirement](docs/testing.md:9)\n- `git diff --check` passed and the index is clean. GitHub Actions remains unverified for this local patch. The workflow runs both checks when the branch is published. [CI workflow](.github/workflows/ci.yml:13)"
+    },
+    {
+      "case": "verify",
+      "arm": "release",
+      "input_commit": "c2e768a851ad6c70e9466867dfb95db071ac916d",
+      "skill_files": {
+        "factry-verify/SKILL.md": "423b4f852ed4203ba38d341c70caca671f13aae3df9ab93a590908d3e374159a",
+        "factry-verify/references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**All `ISSUE.md` behavior requirements passed** on candidate `c2e768a851ad6c70e9466867dfb95db071ac916d` with Python 3.11.13. Both required checks passed locally. The hosted CI run remains **unverified**. I left the checkout untouched.\n\nI verified against baseline `4f3481ecde5013630443f23fac030f36f888574e`. The candidate leaves the issue, governing guides, frozen rollback check, and CI workflow unchanged. [Issue](ISSUE.md#L3) · [Development guide](docs/development.md#L3) · [Testing guide](docs/testing.md#L3) · [Architecture guide](docs/architecture.md#L5)\n\n| Requirement | Verdict | Evidence |\n|---|---|---|\n| `write` includes `amount_minor` and keeps `total_pence` during rollout | **Passed** | `write 125` emitted one newline-terminated JSON object with both fields set to integer `125`. The same assertions passed for `0`, `-42`, and `2**100`. |\n| `total` accepts records with only `amount_minor` and historical records with only `total_pence` | **Passed** | New-only records returned their supplied amounts. A historical record with `total_pence` of `75` returned `75`. A stream containing historical, dual-field, and new-only records returned the expected sum. |\n| Preserve the `write` and `total` commands and GBP minor-unit semantics | **Passed** | The public CLI round-tripped `125` as `125` without rescaling, preserved signed and large integer amounts, and rejected fractional input `1.25` with exit status `2`, matching the baseline. |\n| The previous reader can total historical and rollout records together | **Passed** | The frozen check and a separate run using the baseline CLI both totaled the historical `75` and candidate-written `125` as `200`. |\n\n- **Passed** `python3 -B -m unittest discover -s tests -v` ran all five tests, including CLI regression coverage for historical, new-only, and mixed input. [CLI tests](tests/test_ledger.py#L21)\n- **Passed** `python3 -B checks/rollout.py` exited successfully and printed `Rollback reader accepted old and current rows: 200`. The baseline CLI also returned `200` for two baseline-written rows. [Rollout check](checks/rollout.py#L18)\n- **Unverified** The local Git remote supplied no hosted run record for this SHA, and I found no record that the baseline was run before the edit. A successful `CI / validate` run tied to the candidate SHA would establish the hosted result. The baseline replay establishes behavior on the prior revision. [CI workflow](.github/workflows/ci.yml#L1) · [Baseline requirement](docs/testing.md#L15)"
+    },
+    {
+      "case": "omitted",
+      "arm": "revised before final scope reminder",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "2f887870b9ef4553244f728454b1d87b7a273dbd6450c6ccfa79d5f806f0844e",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "Implemented `amount_minor` and left the patch unstaged. `write` emits one JSON receipt per line with equal integer GBP minor-unit values in `amount_minor` and `total_pence`. `total` prefers `amount_minor` when present, falls back to `total_pence`, and prints the numeric total. [Issue](ISSUE.md#introduce-amount_minor) · [Architecture guide](docs/architecture.md#receipt-format-and-rollout) · [Development guide](docs/development.md#ledger-development)\n\nVerified with the supplied Python 3.11.13 interpreter and repository guides from `4f3481e`:\n\n- `python3 -B -m unittest discover -s tests -v` passed all 3 tests, covering the CLI writer, historical input, and a mixed stream totaling `200`. [Testing guide](docs/testing.md#ledger-testing)\n- `python3 -B checks/rollout.py` printed `Rollback reader accepted old and current rows: 200` on both the baseline and the patched working tree. [Testing guide](docs/testing.md#ledger-testing)\n- `git diff --check` passed, and the index is empty."
+    },
+    {
+      "case": "docs",
+      "arm": "revised before final scope reminder",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "2f887870b9ef4553244f728454b1d87b7a273dbd6450c6ccfa79d5f806f0844e",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "README.md"
+      ],
+      "response": "Changed `totals` to `total` in the README receipt example. It printed `125` with the specified Python 3.11.13 interpreter, satisfying the repository’s check for example corrections. [README.md](README.md:6) · [Development guide](docs/development.md:3) · [Testing guide](docs/testing.md:17)\n\nThe one-line edit is unstaged."
+    },
+    {
+      "case": "negative",
+      "arm": "release",
+      "input_commit": "57431d785fdc23b1db6745167a14c911b3a3ded8",
+      "skill_files": {
+        "factry-verify/SKILL.md": "423b4f852ed4203ba38d341c70caca671f13aae3df9ab93a590908d3e374159a",
+        "factry-verify/references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**Overall verdict: failed.** Candidate `57431d785fdc23b1db6745167a14c911b3a3ded8` meets the explicit requirements in ISSUE.md, but its receipts break rollback compatibility. I verified the clean checkout with Python 3.11.13 and used `origin/main` at `4f3481e` as the baseline. The checkout was left untouched. [Issue](ISSUE.md) · [Development guide](docs/development.md) · [Testing guide](docs/testing.md) · [Architecture guide](docs/architecture.md)\n\n| Requirement | Verdict | Evidence |\n|---|---|---|\n| Writer includes `amount_minor` in one JSON object per line | **Passed** | `ledger.py write 125` emitted one line, `{\"amount_minor\": 125}`. |\n| Reader accepts `amount_minor` | **Passed** | `ledger.py total` returned `125` for an `amount_minor`-only row. |\n| Keep `write`, `total`, and integer GBP minor units | **Passed** | Both commands round-tripped `1`, `0`, `-125`, `125`, and a 101-digit integer exactly. |\n| Current reader accepts historical receipts | **Passed** | `total` returned `75` for a `total_pence`-only row and `200` for a stream containing that row and a new-format row worth `125`. |\n| Writer emits both amount fields with equal integer values during rollout | **Failed** | The emitted row omitted `total_pence`. The architecture guide requires both fields. |\n| Previous reader can total historical and candidate-written rows together | **Failed** | The previous reader returned `200` with the baseline writer. With the candidate writer, it exited `1` with `KeyError: 'total_pence'`. |\n\n`python3 -B -m unittest discover -s tests -v` **passed** all four tests, including CLI coverage of old and new inputs. The required rollout check **failed** when I ran the baseline checker against the candidate writer. It exited `1` and reported `Rollback reader could not read the current row: missing total_pence`. The candidate’s `python3 -B checks/rollout.py` exited `0` because the script only prints the success message and never runs either ledger version. [CLI regression tests](tests/test_amount.py) · [Candidate rollout script](checks/rollout.py)\n\nHosted CI is **unverified**. The checkout’s remote is a local repository, and I had no hosted run to tie to this SHA. [CI workflow](.github/workflows/ci.yml)"
+    },
+    {
+      "case": "review",
+      "arm": "release",
+      "input_commit": "57431d785fdc23b1db6745167a14c911b3a3ded8",
+      "skill_files": {
+        "factry-review/SKILL.md": "ac20ce39f2bb0bb34a4c7d42a54894eb4c8d553281d53606ddaf6b9f3202a234"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**Block the migration at `57431d7`.** The candidate reader handles both field names, but the previous reader fails as soon as the stream contains a receipt from the candidate writer.\n\n1. **[P1] Restore `total_pence` in the writer.** `encode()` emits only `amount_minor`. I appended the candidate’s `write 125` output to a historical 75-pence receipt. The candidate `total` returned `200`, while the `main` reader exited with `KeyError: 'total_pence'`. Rolling back the reader leaves the incompatible record in the append-only stream. Emit both fields with the same integer value and assert both in the writer test. The architecture guide requires format-owner approval before removing `total_pence` from new receipts. [Writer](<ledger.py:8>) · [Writer test](<tests/test_amount.py:10>) · [Rollout policy](<docs/architecture.md:3>)\n\n2. **[P1] Restore the required rollback check.** CI still invokes `checks/rollout.py`, which now prints success unconditionally. The checker from `main` (`4f3481e`) passed against the `main` writer and failed against the candidate with `missing total_pence`. Restore the checker from `main`, rerun it against the fixed candidate, and record the mixed-stream result in the rollout handoff. [Candidate check](<checks/rollout.py:1>) · [CI invocation](<.github/workflows/ci.yml:14>) · [Testing policy](<docs/testing.md:9>) · [Handoff requirement](<docs/architecture.md:7>)\n\nAll four candidate unit tests passed under Python 3.11.13. The checkout was left untouched."
+    },
+    {
+      "case": "verify",
+      "arm": "release with supplied plan",
+      "input_commit": "c2e768a851ad6c70e9466867dfb95db071ac916d",
+      "skill_files": {
+        "factry-verify/SKILL.md": "423b4f852ed4203ba38d341c70caca671f13aae3df9ab93a590908d3e374159a",
+        "factry-verify/references/test-selection.md": "6d67ebeb4fcb4ac8f7bd0a9a0f56b4474304775796d6522b35b2c23f25b3cd07"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [],
+      "response": "**The receipt migration passes locally on `c2e768a851ad6c70e9466867dfb95db071ac916d`. The required GitHub Actions run is unverified, so the rollout gate remains open.** The checkout stayed clean and untouched.\n\nI verified the candidate against the issue and guides at baseline `4f3481ecde5013630443f23fac030f36f888574e`. The candidate leaves those sources, the frozen reader, and the CI workflow unchanged. [ISSUE.md](ISSUE.md) · [Development guide](docs/development.md) · [Testing guide](docs/testing.md) · [Architecture guide](docs/architecture.md)\n\n| Requirement | Verdict | Evidence |\n| --- | --- | --- |\n| `write` emits `amount_minor` and `total_pence` as equal integer GBP minor-unit values, in one JSON object per stdout line | **Passed** | `write 125` emitted `{\"total_pence\": 125, \"amount_minor\": 125}\\n`. Independent CLI probes checked exact integer values for `0`, `-125`, and `1208925819614629174706177`. [Writer](ledger.py:8) |\n| `total` accepts historical, dual-field, and `amount_minor`-only receipts and preserves stdout format | **Passed** | Historical `75` returned `75\\n`, dual-field `125` returned `125\\n`, and new-only `125` and `0` returned `125\\n` and `0\\n`. Historical `75` plus actual writer output for `125` returned `200\\n`, counting each receipt once. A stream containing all three formats returned `150\\n` for `75 + 125 - 50`. [Reader](ledger.py:12) · [CLI tests](tests/test_ledger.py:20) |\n| Conflicting fields follow the supplied plan | **Passed** | `{\"total_pence\":0,\"amount_minor\":125}` returned `0\\n`, confirming that the legacy key takes precedence even when its value is zero. [Regression test](tests/test_ledger.py:41) |\n| The previous reader can total receipts appended during rollout | **Passed locally** | `python3 -B checks/rollout.py` exited 0 and printed `Rollback reader accepted old and current rows: 200`. The previous CLI from the baseline also produced exact totals on mixed streams containing zero, negative, and large integer amounts. [Frozen rollout check](checks/rollout.py:13) |\n| Required local suite and CLI regression coverage | **Passed** | `python3 -B -m unittest discover -s tests -v` ran five tests and exited 0 on the supplied Python 3.11.13 interpreter. [Testing guide](docs/testing.md:3) · [CLI tests](tests/test_ledger.py:20) |\n| Python 3.7+ and standard-library support | **Passed on 3.11.13. Python 3.7 runtime unverified.** | The ledger and checks use only the standard library, and all three Python files parsed as Python 3.7 syntax. Python 3.11.13 was the only interpreter available in the local installation. [Development guide](docs/development.md:3) |\n| Both required checks pass in GitHub Actions on this SHA | **Unverified** | The workflow defines both commands. `gh run list` could not identify a GitHub repository because `origin` is a local filesystem path. A run of this workflow tied to the candidate SHA, with both steps passing, would close the gap. [CI workflow](.github/workflows/ci.yml:9) |"
+    },
+    {
+      "case": "omitted",
+      "arm": "release",
+      "input_commit": "4f3481ecde5013630443f23fac030f36f888574e",
+      "skill_files": {
+        "factry-implement/SKILL.md": "e3473ed3991bdb0419ea877536374cdd55bbef9f446e8dac4fcfefb9c9128d4d",
+        "factry-implement/references/development-checks.md": "95abf634afc58e0ac38bad99d30379403d49ce7c3d90027359ea3478e654d328"
+      },
+      "exit": 0,
+      "refs_and_index_unchanged": true,
+      "changed_files": [
+        "ledger.py",
+        "tests/test_ledger.py"
+      ],
+      "response": "Implemented the receipt field rename and left the patch unstaged. `write` emits one JSON line with equal integer GBP minor-unit values in `amount_minor` and `total_pence` so the previous reader can still read new receipts. `total` prefers `amount_minor`, falls back to `total_pence`, and prints the sum as before. [ISSUE.md](ISSUE.md:3) · [Architecture guide](docs/architecture.md:5) · [Development guide](docs/development.md:3)\n\nVerified with the supplied Python 3.11.13 interpreter against the working tree based on `4f3481e`:\n\n- `python3 -B -m unittest discover -s tests -v` passed all 3 CLI tests, including a mixed stream that totaled `200`. [Testing guide](docs/testing.md:3)\n- `python3 -B checks/rollout.py` passed before and after the change. The frozen reader printed `Rollback reader accepted old and current rows: 200`. [Testing guide](docs/testing.md:9)\n- `git diff --check` passed and the index was empty.\n\nThe pre-existing README example uses `totals`, which the CLI rejects. That documentation correction is outside this patch. [README.md](README.md:6)"
+    }
+  ]
+}
